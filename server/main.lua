@@ -51,8 +51,6 @@ CreateThread(function()
     end
 
     while true do
-        -- Wait(math.random(Config.Orders.Interval[1], Config.Orders.Interval[2]) * 1000 * 60)
-
         local OrderType = lib.table.deepclone(Config.Orders.Types[math.random(1, #Config.Orders.Types)])
 
         local OrderIndex = #Orders + 1
@@ -143,6 +141,8 @@ lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Sou
         Looted = 0
     }
 
+    Util.Log(Source, ('Startede en DumpsterDive kontrakt i zone %s med %s dumpsters.'):format(tostring(ZoneIndex), tostring(Contract[Source].Dumpsters)))
+
     return Contract[Source]
 end)
 
@@ -174,12 +174,16 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
     local Reward = Config.Contracts.DumpsterDive.Reward
     local Amount = math.random(Reward.Amount[1], Reward.Amount[2])
 
-    exports['ox_inventory']:AddItem(Source, Reward.Item, Amount)
+    exports['ox_inventory']:AddItem(Source, Reward.Item, Amount))
 
     if ContractData.Looted >= ContractData.Dumpsters then
         AddXP(PlayerData.Job.Name, ContractData.XP * ContractData.Dumpsters)
+
+        Util.Log(Source, ('Færdiggjorde en DumpsterDive kontrakt og modtog %s XP.'):format(tostring(ContractData.XP * ContractData.Dumpsters)))
         
         Contract[Source] = nil
+    else
+        Util.Log(Source, ('Looted en dumpster og modtog %s x %s.'):format(tostring(Amount), Reward.Item))
     end
 
     return true
@@ -209,6 +213,8 @@ lib.callback.register('mani-pawnshop:server:AcceptOrder', function(Source, Data)
 
     Orders[OrderId] = nil
 
+    Util.Log(Source, ('%s accepterede ordre %s.'):format(GetPlayerName(Source), tostring(OrderId)))
+
     return Order
 end)
 
@@ -218,8 +224,6 @@ lib.callback.register('mani-pawnshop:server:RegisterTempStash', function(Source,
         Util.ACLog(Source, ('%s [%s] Forsøgte at registrere en stash for en ordre de ikke har accepteret.'):format(GetPlayerName(Source), Source))
         return false, 'Der skete en fejl.'
     end
-
-    local StashId = ('pawnorder_%s'):format(OrderId)
 
     Order.Stash = exports['ox_inventory']:CreateTemporaryStash({
         label = 'Materiale Ordre',
@@ -251,6 +255,8 @@ lib.callback.register('mani-pawnshop:server:CompleteOrder', function(Source)
 
         if exports['ox_inventory']:RemoveItem(Source, Item.Item, Item.Amount, Order.Stash) then
             Util.AddMoneyForJob(Order.Job, Config.Orders.Worth[Item.Item] * Item.Amount)
+
+            Util.Log(Source, ('Afleverede %s x %s for ordre %s.'):format(tostring(Item.Amount), Item.Item, tostring(Order.Id)))
         end
     end
 
