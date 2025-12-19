@@ -34,12 +34,36 @@
 		{ Id: 'orders', Label: 'Ordrer' },
 	];
 
-	const Orders = [
-		{ Id: 1, Company: 'Byggeselskabet Hansen A/S', Material: 'Jern', Amount: 150, Payment: 4500, Deadline: '24 timer', Status: 'available', Logo: 'https://via.placeholder.com/80x80/0a246a/ffffff?text=BH' },
-		{ Id: 2, Company: 'Elektriker Petersen', Material: 'Kobber', Amount: 75, Payment: 3200, Deadline: '12 timer', Status: 'available', Logo: 'https://via.placeholder.com/80x80/1084d7/ffffff?text=EP' },
-		{ Id: 3, Company: 'Elektriker Petersen', Material: 'Kobber', Amount: 75, Payment: 3200, Deadline: '12 timer', Status: 'available', Logo: 'https://via.placeholder.com/80x80/1084d7/ffffff?text=EP' },
-		{ Id: 4, Company: 'Elektriker Petersen', Material: 'Kobber', Amount: 75, Payment: 3200, Deadline: '12 timer', Status: 'available', Logo: 'https://via.placeholder.com/80x80/1084d7/ffffff?text=EP' }
-	];
+	interface Order {
+		Label: string;
+		Id: number;
+		InterestedIn: Array<{ Item: string; Amount: number }>;
+		CreatedAt: number;
+		Logo: string;
+		Items: number;
+		Coords: { x: number; y: number; z: number; w: number };
+	}
+
+	let Orders: Order[] = [];
+
+	function formatTimeRemaining(createdAt: number): string {
+		const expireMinutes = $Config?.Orders?.Expire || 120;
+		const now = Math.floor(Date.now() / 1000);
+		const expiresAt = createdAt + (expireMinutes * 60);
+		const remaining = expiresAt - now;
+		
+		if (remaining <= 0) {
+			return 'Udløbet';
+		}
+		
+		const hours = Math.floor(remaining / 3600);
+		const minutes = Math.floor((remaining % 3600) / 60);
+		
+		if (hours > 0) {
+			return `${hours}t ${minutes}m tilbage`;
+		}
+		return `${minutes}m tilbage`;
+	}
 	
 	function selectContract(Data : any) {
 		PlaySound("click", 0.2);
@@ -50,7 +74,16 @@
 	function acceptOrder(Order : any) {
 		PlaySound("click", 0.2);
 		TurnOff();
-		fetchNui('AcceptOrder', Order);
+		fetchNui('AcceptOrder', Order.Id);
+	}
+
+	function SelectTab(TabId: string) {
+		activeTab = TabId;
+		if (TabId === 'orders') {
+			fetchNui('FetchOrders').then((FetchedOrders: any) => {
+				Orders = FetchedOrders;
+			});
+		}
 	}
 
 	function updateTime() {
@@ -228,7 +261,10 @@
 						<button 
 							class="py-3 px-2 text-xs font-semibold border-b" 
 							style="{activeTab === Tab.Id ? 'background: #ffffff; border-left: 3px solid #0a246a; color: #0a246a;' : 'background: #ffffff; color: #808080; border-left: 3px solid transparent;'} border-bottom: 1px solid #808080;"
-							on:click={() => { PlaySound("click", 0.2); activeTab = Tab.Id; }}
+							on:click={() => { 
+								PlaySound("click", 0.2);
+								SelectTab(Tab.Id);
+							}}
 						>
 							{Tab.Label}
 						</button>
@@ -321,63 +357,60 @@
 							<p class="text-xs mb-3" style="color: #666;">Virksomheder der ønsker at købe materialer fra pantelåneren.</p>
 						</div>
 
-						<!-- Orders Grid -->
-						<div class="grid grid-cols-2 gap-3">
-							{#each Orders as Order}
-								<div
-									class="flex flex-col rounded overflow-hidden"
-									style="background: #ffffff; border: 2px solid #d4d0c8; box-shadow: 2px 2px 4px rgba(0,0,0,0.1);"
-								>
-									<!-- Company Header -->
-									<div class="p-3 flex items-center gap-3" style="background: #f0f0f0; border-bottom: 1px solid #d4d0c8;">
-										<img src="{Order.Logo}" alt="{Order.Company}" class="rounded" style="width: 50px; height: 50px; border: 1px solid #d4d0c8;" />
-										<div class="flex-grow">
-											<div class="text-sm font-bold mb-1" style="color: #0a246a;">{Order.Company}</div>
-											<div class="text-[10px]" style="color: #666;">Forespørgsel #{Order.Id}</div>
-										</div>
-										{#if Order.Status === 'pending'}
-											<span class="text-[9px] px-2 py-1 font-bold" style="background: linear-gradient(135deg, #fff9e6 0%, #f5ecc8 100%); color: #000000; border: 1px solid #d4c490; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080;">
-												Afventer
-											</span>
-										{/if}
+						{#if Orders.length === 0}
+							<div class="flex items-center justify-center h-64">
+								<div class="text-center">
+									<p class="text-sm font-semibold mb-1" style="color: #0a246a;">Ingen aktive ordrer</p>
+									<p class="text-xs" style="color: #666;">Der er ingen tilgængelige ordrer i øjeblikket</p>
+								</div>
+							</div>
+						{:else}
+							<!-- Orders Grid -->
+							<div class="grid grid-cols-2 gap-3">
+								{#each Orders as Order}
+									<div
+										class="flex flex-col rounded overflow-hidden"
+										style="background: #ffffff; border: 2px solid #d4d0c8; box-shadow: 2px 2px 4px rgba(0,0,0,0.1);"
+									>
+										<!-- Company Header -->
+										<div class="p-3 flex items-center gap-3" style="background: #f0f0f0; border-bottom: 1px solid #d4d0c8;">
+											<img src="{Order.Logo}" alt="{Order.Label}" class="rounded" style="width: 50px; height: 50px; border: 1px solid #d4d0c8; object-fit: contain;" />
+											<div class="flex-grow">
+												<div class="text-sm font-bold mb-1" style="color: #0a246a;">{Order.Label}</div>
+												<div class="text-[10px]" style="color: #666;">Forespørgsel #{Order.Id}</div>
+											</div>
+										<div class="text-[11px]" style="color: #333;">{formatTimeRemaining(Order.CreatedAt)}</div>
 									</div>
 
 									<!-- Order Details -->
 									<div class="p-3 flex-grow">
 										<div class="mb-3">
-											<div class="text-xs font-semibold mb-2" style="color: #0a246a;">Ønsket Materiale</div>
-											<div class="flex items-center justify-between p-2 rounded" style="background: #f0f0f0; border: 1px solid #d4d0c8;">
-												<span class="text-sm font-bold" style="color: #1084d7;">{Order.Material}</span>
-												<span class="text-xs" style="color: #666;">{Order.Amount} enheder</span>
-											</div>
-										</div>
-
-										<div class="grid grid-cols-2 gap-2 mb-3">
-											<div>
-												<div class="text-[10px] mb-1" style="color: #666;">Betaling</div>
-												<div class="text-sm font-bold" style="color: #1084d7;">${Order.Payment}</div>
-											</div>
-											<div>
-												<div class="text-[10px] mb-1" style="color: #666;">Deadline</div>
-												<div class="text-sm font-bold" style="color: #0a246a;">{Order.Deadline}</div>
+											<div class="text-xs font-semibold mb-2" style="color: #0a246a;">Ønskede Materialer ({Order.Items} {Order.Items === 1 ? 'type' : 'typer'})</div>
+											<div class="space-y-1">
+												{#each Order.InterestedIn as item}
+													<div class="flex items-center justify-between p-2 rounded" style="background: #f0f0f0; border: 1px solid #d4d0c8;">
+														<span class="text-xs font-semibold" style="color: #1084d7;">{item.Item}</span>
+														<span class="text-xs" style="color: #666;">{item.Amount}x</span>
+													</div>
+												{/each}
 											</div>
 										</div>
 									</div>
 
-									<!-- Accept Button -->
-									<div class="p-3 pt-0">
-										<button 
-											class="xp-button w-full px-3 py-2 text-xs font-bold rounded" 
-											style="background: linear-gradient(135deg, {Order.Status === 'available' ? '#ece9d8' : '#d4d0c8'} 0%, {Order.Status === 'available' ? '#bfb9b1' : '#a0a0a0'} 100%); border: 1px solid #dfdfdf; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080; transition: all 0.05s ease; {Order.Status === 'pending' ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
-											on:click={() => Order.Status === 'available' && acceptOrder(Order)}
-											disabled={Order.Status === 'pending'}
-										>
-											{Order.Status === 'pending' ? 'Ordre Accepteret' : 'Acceptér Ordre'}
-										</button>
-									</div>
+								<!-- Accept Button -->
+								<div class="p-3 pt-0">
+									<button 
+										class="xp-button w-full px-3 py-2 text-xs font-bold rounded" 
+										style="background: linear-gradient(135deg, #ece9d8 0%, #bfb9b1 100%); border: 1px solid #dfdfdf; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080; transition: all 0.05s ease"
+										on:click={() => acceptOrder(Order)}
+									>
+										Acceptér Ordre
+									</button>
 								</div>
-							{/each}
-						</div>
+							</div>
+						{/each}
+							</div>
+						{/if}
 					
 					{/if}
 				</div>

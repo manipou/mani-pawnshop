@@ -1,8 +1,6 @@
-local Config = lib.load('config')
+local Config, Util = lib.load('config'), lib.load('sv_util')
 
-local Pawnshops, Contract, Orders = {}, {}, {}
-
-local ACWebhook = exports['elevate-confidential']:fetch('ac_webhook')
+local Pawnshops, Contract, Orders, InProgress = {}, {}, {}, {}
 
 CreateThread(function()
     local SQLSuccess, SQLShops = pcall(function() return MySQL.query.await('SELECT * FROM `mani_pawnshops`') end)
@@ -22,7 +20,6 @@ CreateThread(function()
 
     for i = 1, #SQLShops do
         local ShopData = SQLShops[i]
-        print(json.encode(ShopData))
         local Metadata = json.decode(ShopData.metadata) or {}
 
         Pawnshops[ShopData.job] = {
@@ -53,20 +50,40 @@ CreateThread(function()
         end
     end
 
-    -- Config.WhitelistedModels = {}
+    while true do
+        -- Wait(math.random(Config.Orders.Interval[1], Config.Orders.Interval[2]) * 1000 * 60)
 
-    -- for _, Model in pairs(Config.Contracts.DumpsterDive.DumpsterProps) do
-    --     Config.WhitelistedModels[GetHashKey(Model)] = true
-    -- end
+        local OrderType = lib.table.deepclone(Config.Orders.Types[math.random(1, #Config.Orders.Types)])
+
+        local OrderIndex = #Orders + 1
+        OrderType.Id = OrderIndex
+        OrderType.CreatedAt = os.time()
+
+        local Items = OrderType.InterestedIn
+        local UsedItems = {}
+        OrderType.InterestedIn = {}
+
+        for i = 1, OrderType.Items do
+            local Item = Items[math.random(1, #Items)]
+            while UsedItems[Item.Item] do
+                Item = Items[math.random(1, #Items)]
+            end
+
+            Item.Amount = math.random(Item.Amount[1], Item.Amount[2])
+            OrderType.InterestedIn[#OrderType.InterestedIn + 1] = Item
+
+            UsedItems[Item.Item] = true
+        end
+
+        Orders[OrderIndex] = OrderType
+
+        SetTimeout(Config.Orders.Expire * 60 * 1000, function()
+            Orders[OrderIndex] = nil
+        end)
+
+        Wait(math.random(Config.Orders.Interval[1], Config.Orders.Interval[2]) * 1000 * 60)
+    end
 end)
-
-local function ACLog(Source, Message)
-    print(Message)
-end
-
-local function Log(Source, Message)
-
-end
 
 local function AddXP(Job, Amount)
     Pawnshops[Job].Metadata.XP = (Pawnshops[Job].Metadata.XP or 0) + Amount
@@ -76,6 +93,8 @@ local function AddXP(Job, Amount)
         Job
     })
 end
+
+lib.callback.register('mani-pawnshop:server:GetOrders', function(Source) return Orders end)
 
 lib.callback.register('mani-pawnshop:server:GetComputerData', function(Source, Data)
     local ShopId = Data.ShopId
@@ -105,7 +124,7 @@ end)
 lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Source, Data)
     local ZoneIndex = Data.Zone
     if not ZoneIndex or type(ZoneIndex) ~= 'number' then
-        ACLog(Source, ('%s [%s] Forsøgte at køre en Pawnshop funktion med forkerte parameters.'):format(GetPlayerName(Source), Source))
+        Util.ACLog(Source, ('%s [%s] Forsøgte at køre en Pawnshop funktion med forkerte parameters.'):format(GetPlayerName(Source), Source))
         return {}
     end
 
@@ -113,7 +132,7 @@ lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Sou
     local Zone = DConfig.Zones[ZoneIndex]
 
     if not Zone then
-        ACLog(Source, ('%s [%s] Forsøgte at starte en DumpsterDive kontrakt med en ugyldig zone index (%s).'):format(GetPlayerName(Source), Source, tostring(ZoneIndex)))
+        Util.ACLog(Source, ('%s [%s] Forsøgte at starte en DumpsterDive kontrakt med en ugyldig zone index (%s).'):format(GetPlayerName(Source), Source, tostring(ZoneIndex)))
         return {}
     end
 
@@ -132,7 +151,7 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
     if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
 
     if not Config.Jobs[PlayerData.Job.Name] then
-        ACLog(Source, ('%s [%s] Forsøgte at køre en Pawnshop funktion uden at have et whitelisted job.'):format(GetPlayerName(Source), Source))
+        Util.ACLog(Source, ('%s [%s] Forsøgte at køre en Pawnshop funktion uden at have et whitelisted job.'):format(GetPlayerName(Source), Source))
         return false, 'Der skete en fejl.'
     end
 
@@ -141,12 +160,12 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
 
     local ContractData = Contract[Source]
     if not ContractData then
-        ACLog(Source, ('%s [%s] Forsøgte at søge i en dumpster uden en aktiv kontrakt.'):format(GetPlayerName(Source), Source))
+        Util.ACLog(Source, ('%s [%s] Forsøgte at søge i en dumpster uden en aktiv kontrakt.'):format(GetPlayerName(Source), Source))
         return false, 'Der skete en fejl.'
     end
 
     if ContractData.Type ~= 'DumpsterDive' then
-        ACLog(Source, ('%s [%s] Forsøgte at søge i en dumpster med en forkert kontrakt type (%s).'):format(GetPlayerName(Source), Source, tostring(ContractData.Type)))
+        Util.ACLog(Source, ('%s [%s] Forsøgte at søge i en dumpster med en forkert kontrakt type (%s).'):format(GetPlayerName(Source), Source, tostring(ContractData.Type)))
         return false, 'Der skete en fejl.'
     end
 
@@ -162,6 +181,80 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
         
         Contract[Source] = nil
     end
+
+    return true
+end)
+
+lib.callback.register('mani-pawnshop:server:AcceptOrder', function(Source, Data)
+    local OrderId = Data.OrderId
+    if not OrderId or type(OrderId) ~= 'number' then
+        Util.ACLog(Source, ('%s [%s] Forsøgte at acceptere en ordre med forkerte parameters.'):format(GetPlayerName(Source), Source))
+        return false, 'Der skete en fejl.'
+    end
+
+    local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
+    if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
+
+    if not Config.Jobs[PlayerData.Job.Name] then
+        Util.ACLog(Source, ('%s [%s] Forsøgte at acceptere en ordre uden at have et whitelisted job.'):format(GetPlayerName(Source), Source))
+        return false, 'Der skete en fejl.'
+    end
+
+    local Order = Orders[OrderId]
+    if not Order then return false, 'Denne ordre findes ikke længere.' end
+
+    Order.Job = PlayerData.Job.Name
+
+    InProgress[Source] = Order
+
+    Orders[OrderId] = nil
+
+    return Order
+end)
+
+lib.callback.register('mani-pawnshop:server:RegisterTempStash', function(Source, OrderId)
+    local Order = InProgress[Source]
+    if not Order or Order.Id ~= OrderId then
+        Util.ACLog(Source, ('%s [%s] Forsøgte at registrere en stash for en ordre de ikke har accepteret.'):format(GetPlayerName(Source), Source))
+        return false, 'Der skete en fejl.'
+    end
+
+    local StashId = ('pawnorder_%s'):format(OrderId)
+
+    Order.Stash = exports['ox_inventory']:CreateTemporaryStash({
+        label = 'Materiale Ordre',
+        slots = 5,
+        maxWeight = 50000
+    })
+
+    return Order.Stash
+end)
+
+lib.callback.register('mani-pawnshop:server:CompleteOrder', function(Source)
+    local Order = InProgress[Source]
+    if not Order then
+        Util.ACLog(Source, ('%s [%s] Forsøgte at fuldføre en ordre de ikke har accepteret.'):format(GetPlayerName(Source), Source))
+        return false, 'Der skete en fejl.'
+    end
+
+    for i = 1, #Order.InterestedIn do
+        local Item = Order.InterestedIn[i]
+        local ItemCount = exports['ox_inventory']:Search(Order.Stash, 'count', Item.Item)
+
+        if ItemCount < Item.Amount then
+            return false, 'Du mangler nogle af de nødvendige genstande for at fuldføre ordren.'
+        end
+    end
+
+    for i = 1, #Order.InterestedIn do
+        local Item = Order.InterestedIn[i]
+
+        if exports['ox_inventory']:RemoveItem(Source, Item.Item, Item.Amount, Order.Stash) then
+            Util.AddMoneyForJob(Order.Job, Config.Orders.Worth[Item.Item] * Item.Amount)
+        end
+    end
+
+    InProgress[Source] = nil
 
     return true
 end)

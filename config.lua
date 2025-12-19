@@ -26,6 +26,12 @@ Config.Tray = {
     MaxWeight = 30000,
 }
 
+Config.Levels = {
+    { 0, 1000 },
+    { 1001, 3000 },
+    { 3001, 6000 }
+}
+
 Config.Contracts = {
     ['DumpsterDive'] = {
         Reward = {
@@ -47,10 +53,41 @@ Config.Contracts = {
     }
 }
 
-Config.Levels = {
-    { 0, 1000 },
-    { 1001, 3000 },
-    { 3001, 6000 }
+Config.Orders = {
+    Interval = { 1, 2 }, -- Minutes
+    Expire = 120, -- Minutes
+    Worth = {
+        ['refinedmaterial'] = 7500
+    },
+    Types = {
+        {
+            Label = 'Mandehul A/S',
+            Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
+            Coords = vec4(539.95, -1655.64, 27.83, 230.59),
+            Items = 1,
+            InterestedIn = {
+                { Item = 'refinedmaterial', Amount = { 5, 10 } }
+            }
+        },
+        {
+            Label = 'Burgershot',
+            Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
+            Coords = vec4(-1175.75, -899.56, 12.70, 217.64),
+            Items = 1,
+            InterestedIn = {
+                { Item = 'refinedmaterial', Amount = { 5, 10 } }
+            }
+        },
+        {
+            Label = 'Mechanigger',
+            Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
+            Coords = vec4(1142.77, -792.44, 56.60, 89.92),
+            Items = 1,
+            InterestedIn = {
+                { Item = 'refinedmaterial', Amount = { 5, 10 } }
+            }
+        },
+    }
 }
 
 Config.Refiner = {

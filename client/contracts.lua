@@ -17,6 +17,8 @@ local function ClearContract()
     Blips = {}
 
     Contract = {}
+
+    LocalPlayer.state.ManiBusy = false
 end
 
 local function DumpsterDive()
@@ -57,8 +59,6 @@ local function DumpsterDive()
             local PlayerPed = cache.ped
             if IsPedInAnyVehicle(PlayerPed, true) then return end
 
-            LocalPlayer.state.ManiBusy = true
-
             if lib.progressBar({
                 duration = DConfig.SearchTime,
                 label = 'Undersøger skraldespand...',
@@ -74,8 +74,6 @@ local function DumpsterDive()
                     clip = 'fixing_a_ped'
                 },
             }) then
-                LocalPlayer.state.ManiBusy = false
-
                 if BlacklistedEntities[Data.entity] then return end
 
                 lib.waitFor(function()
@@ -118,7 +116,7 @@ RegisterNUICallback('StartContract', function(ContractData, cb)
     cb({})
     SetNuiFocus(false, false)
 
-    if Contract.Type then lib.notify({ title = 'Fejl', description = 'Du har allerede en aktiv kontrakt.', type = 'error' }) return end
+    if LocalPlayer.state.ManiBusy then lib.notify({ title = 'Fejl', description = 'Du har travlt med noget andet.', type = 'error' }) return end
 
     local PlayerData = exports['mani-bridge']:GetPlayerData()
     if not PlayerData then return end

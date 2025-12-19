@@ -122,6 +122,11 @@ CreateThread(function()
     end
 end)
 
+RegisterNuiCallback('FetchOrders', function(_, cb)
+    local Orders = lib.callback.await('mani-pawnshop:server:GetOrders', false)
+    cb(Orders)
+end)
+
 RegisterNUICallback('getLocale', function(_, cb)
     cb({locale = Config.Locale})
 end)
