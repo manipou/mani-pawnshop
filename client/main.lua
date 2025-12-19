@@ -1,0 +1,145 @@
+local Config = lib.load('config')
+local Zones, Targets = {}, {}
+
+local function GetLevel(XP)
+    for i = 1, #Config.Levels do
+        local LevelData = Config.Levels[i]
+        local MinXP, MaxXP = LevelData[1], LevelData[2]
+
+        if XP >= MinXP and XP <= MaxXP then
+            return i, MaxXP, false
+        end
+    end
+
+    return #Config.Levels, XP, true
+end
+
+local function OpenComputer(ShopId)
+    local ComputerData = lib.callback.await('mani-pawnshop:server:GetComputerData', false, {
+        ShopId = ShopId
+    })
+
+    ComputerData.Level, ComputerData.MaxXP, ComputerData.IsMaxLevel = GetLevel(ComputerData.XP)
+
+    SendNUIMessage({
+        action = 'OpenMenu',
+        data = {
+            Shop = ShopId,
+            PawnData = ComputerData
+        }
+    })
+    
+    SetNuiFocus(true, true)
+end
+
+local function EnterPawnshop(Data)
+    local Shop = Config.Shops[Data.Index]
+
+    for i = 1, #Shop.Tray do
+        local Coords = Shop.Tray[i]
+        local TrayId = ('%s_tray_%s'):format(Shop.Job, i)
+
+        Targets[#Targets + 1] = exports['ox_target']:addSphereZone({
+            coords = Coords,
+            name = TrayId,
+            radius = 0.5,
+            debugColour = vec4(51, 54, 92, 50.0),
+            debug = Config.Debug,
+            options = {
+                label = 'Åben Bakke',
+                icon = 'fa-solid fa-box-open',
+                distance = 2.0,
+                onSelect = function()
+                    if not exports['ox_inventory']:openInventory('stash', TrayId) then
+                        local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Index = i, Job = Shop.Job })
+                        if Success then exports['ox_inventory']:openInventory('stash', TrayId) end
+                    end
+                end
+            }
+
+        })
+    end
+
+    Targets[#Targets + 1] = exports['ox_target']:addSphereZone({ -- Refiner
+        coords = Shop.Refiner,
+        name = ('%s_refiner'):format(Shop.Job),
+        radius = 0.5,
+        debugColour = vec4(51, 54, 92, 50.0),
+        debug = Config.Debug,
+        options = {
+            label = 'Brug Refiner',
+            icon = 'fa-solid fa-recycle',
+            group = Shop.Job,
+            distance = 2.0,
+            onSelect = function()
+                exports['mani-traders']:OpenTrade('PawnshopRefiner')
+            end
+        }
+    })
+
+    Targets[#Targets + 1] = exports['ox_target']:addSphereZone({ -- Computer
+        coords = Shop.Computer,
+        name = ('%s_computer'):format(Shop.Job),
+        radius = 0.5,
+        debugColour = vec4(51, 54, 92, 50.0),
+        debug = Config.Debug,
+        options = {
+            label = 'Brug Computer',
+            icon = 'fa-solid fa-computer',
+            group = Shop.Job,
+            distance = 2.0,
+            onSelect = function()
+                OpenComputer(Data.Index)
+            end
+        }
+    })
+end
+
+local function ExitPawnshop(Data)
+    local Shop = Config.Shops[Data.Index]
+
+    for i = 1, #Targets do
+        local Target = Targets[i]
+        exports['ox_target']:removeZone(Target)
+    end
+
+    Targets = {}
+end
+
+CreateThread(function()
+    for i = 1, #Config.Shops do
+        local Data = Config.Shops[i]
+
+        Zones[Data.Job] = lib.zones.poly({
+            Index = i,
+            points = Data.Zone,
+            thickness = 15.0,
+            debugColour = vec4(51, 54, 92, 50.0),
+            debug = Config.Debug,
+            onEnter = EnterPawnshop,
+            onExit = ExitPawnshop
+        })
+    end
+end)
+
+RegisterNUICallback('getLocale', function(_, cb)
+    cb({locale = Config.Locale})
+end)
+
+RegisterNUICallback('hideUI', function(_, cb)
+    cb({})
+    SetNuiFocus(false, false)
+end)
+
+CreateThread(function()
+    Wait(500)
+
+    SendNUIMessage({
+        action = 'InitializeUI',
+        data = {
+            Config = Config,
+        }
+    })
+
+    OpenComputer(1)
+end)
