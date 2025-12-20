@@ -60,6 +60,9 @@ RegisterNUICallback('AcceptOrder', function(OrderId, cb)
             local NPCMOdel = GetHashKey('s_m_y_ammucity_01')
             lib.requestModel(NPCMOdel)
             Order.NPC = CreatePed(26, NPCMOdel, Order.Coords.x, Order.Coords.y, Order.Coords.z, Order.Coords.w, false, false)
+            FreezeEntityPosition(Order.NPC, true)
+            SetEntityInvincible(Order.NPC, true)
+            SetBlockingOfNonTemporaryEvents(Order.NPC, true)
 
             exports['ox_target']:addLocalEntity(Order.NPC, {
                 {
@@ -79,6 +82,13 @@ RegisterNUICallback('AcceptOrder', function(OrderId, cb)
                         local Success, Error = lib.callback.await('mani-pawnshop:server:CompleteOrder', false, Order.Id)
                         if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der skete en fejl.', type = 'error' }) return end
                         lib.notify({ title = 'Succes', description = 'Du har fuldført ordren.', type = 'success' })
+
+                        local Dict = 'mp_common'
+                        local Clip = 'givetake1_a'
+
+                        lib.playAnim(Order.NPC, Dict, Clip, 8.0, 8.0, 2000, 536870912 , 0, false, false, false)
+
+                        lib.playAnim(cache.ped, Dict, Clip, 8.0, 8.0, 2000, 14, 536870912 , false, false, false)
 
                         ClearOrder()
                     end

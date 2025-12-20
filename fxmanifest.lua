@@ -13,8 +13,8 @@ client_scripts {
 }
 
 server_scripts {
-    '@mysql-async/lib/MySQL.lua',
     'server/*.lua',
+    '@oxmysql/lib/MySQL.lua',
     'sv_util.lua'
 }
 

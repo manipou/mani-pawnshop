@@ -174,7 +174,7 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
     local Reward = Config.Contracts.DumpsterDive.Reward
     local Amount = math.random(Reward.Amount[1], Reward.Amount[2])
 
-    exports['ox_inventory']:AddItem(Source, Reward.Item, Amount))
+    exports['ox_inventory']:AddItem(Source, Reward.Item, Amount)
 
     if ContractData.Looted >= ContractData.Dumpsters then
         AddXP(PlayerData.Job.Name, ContractData.XP * ContractData.Dumpsters)
