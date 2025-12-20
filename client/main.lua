@@ -15,9 +15,18 @@ local function GetLevel(XP)
 end
 
 local function OpenComputer(ShopId)
-    local ComputerData = lib.callback.await('mani-pawnshop:server:GetComputerData', false, {
+    local PawnData = lib.callback.await('mani-pawnshop:server:GetComputerData', false, {
         ShopId = ShopId
     })
+
+    local ComputerData = {
+        XP = PawnData.Metadata.XP or 0,
+        Employees = PawnData.Employees or {},
+        Level = 0,
+        MaxXP = 0,
+        IsMaxLevel = false,
+        IsBoss = false
+    }
 
     ComputerData.Level, ComputerData.MaxXP, ComputerData.IsMaxLevel = GetLevel(ComputerData.XP)
 
@@ -101,6 +110,27 @@ local function EnterPawnshop(Data)
         }
     })
 
+    Targets[#Targets + 1] = exports['ox_target']:addSphereZone({ -- Printer
+        coords = Shop.Printer,
+        name = ('%s_printer'):format(Shop.Job),
+        radius = 0.5,
+        debugColour = vec4(51, 54, 92, 50.0),
+        debug = Config.Debug,
+        options = {
+            label = 'Åben printer',
+            icon = 'fa-solid fa-print',
+            group = Shop.Job,
+            distance = 2.0,
+            onSelect = function()
+                local PrinterId = ('%s_printer'):format(Shop.Job)
+                if not exports['ox_inventory']:openInventory('stash', PrinterId) then
+                    local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Type = 'printer', Job = Shop.Job })
+                    if Success then exports['ox_inventory']:openInventory('stash', PrinterId) end
+                end
+            end
+        }
+    })
+
     Targets[#Targets + 1] = exports['ox_target']:addSphereZone({ -- Stash
         coords = Shop.Stash,
         name = ('%s_stash'):format(Shop.Job),
@@ -180,6 +210,13 @@ end)
 RegisterNUICallback('SetMute', function(State, cb)
     cb({})
     SetResourceKvpInt('mani-pawnshop-muted', State and 1 or 0)
+end)
+
+RegisterNUICallback('PrintCheck', function(Employee, cb)
+    local NewEmployees, Error = lib.callback.await('mani-pawnshop:server:PrintCheck', false, Employee)
+    if not NewEmployees then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved udskrivning af check.', type = 'error' }) end
+
+    cb(NewEmployees)
 end)
 
 CreateThread(function()

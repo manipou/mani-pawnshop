@@ -9,6 +9,7 @@ CreateThread(function()
             CREATE TABLE IF NOT EXISTS `mani_pawnshops` (
                 `job` VARCHAR(25) NOT NULL DEFAULT '' COLLATE 'utf8mb4_0900_ai_ci',
                 `metadata` TEXT NOT NULL DEFAULT '[]' COLLATE 'utf8mb4_0900_ai_ci',
+                `employees` TEXT NOT NULL DEFAULT '[]' COLLATE 'utf8mb4_0900_ai_ci',
                 UNIQUE INDEX `job` (`job`) USING BTREE
             )
             COLLATE='utf8mb4_0900_ai_ci'
@@ -21,9 +22,11 @@ CreateThread(function()
     for i = 1, #SQLShops do
         local ShopData = SQLShops[i]
         local Metadata = json.decode(ShopData.metadata) or {}
+        local Employees = json.decode(ShopData.employees) or {}
 
         Pawnshops[ShopData.job] = {
             Metadata = Metadata,
+            Employees = Employees,
             States = {}
         }
     end
@@ -35,12 +38,13 @@ CreateThread(function()
         Config.Jobs[Shop.Job] = true
 
         if not Pawnshops[Shop.Job] then
-            MySQL.insert('INSERT INTO `mani_pawnshops` (job, metadata) VALUES (?, ?)', {
-                Shop.Job, json.encode({})
+            MySQL.insert('INSERT INTO `mani_pawnshops` (job, metadata, employees) VALUES (?, ?, ?)', {
+                Shop.Job, json.encode({}), json.encode({})
             })
 
             Pawnshops[Shop.Job] = {
                 Metadata = {},
+                Employees = {},
                 States = {}
             }
         end
@@ -79,6 +83,12 @@ CreateThread(function()
     end
 end)
 
+local function RegisterStash(Data)
+    local Type = Data.Type
+    local InvId = Data.InvId
+
+    exports['ox_inventory']:RegisterStash(InvId, Config.Inventory[Type].Label, Config.Inventory[Type].Slots, Config.Inventory[Type].MaxWeight)
+end
 local function AddXP(Job, Amount)
     Pawnshops[Job].Metadata.XP = (Pawnshops[Job].Metadata.XP or 0) + Amount
 
@@ -97,9 +107,7 @@ lib.callback.register('mani-pawnshop:server:GetComputerData', function(Source, D
     local PawnData = Pawnshops[Shop.Job]
     if not PawnData then return {} end
 
-    return {
-        XP = PawnData.Metadata.XP or 0,
-    }
+    return PawnData
 end)
 
 lib.callback.register('mani-pawnshop:server:RegisterStash', function(Source, Data)
@@ -111,7 +119,10 @@ lib.callback.register('mani-pawnshop:server:RegisterStash', function(Source, Dat
 
     local InvId = ('%s_%s%s'):format(Job, Type, Index and ('_%s'):format(Index) or '')
 
-    exports['ox_inventory']:RegisterStash(InvId, Config.Inventory[Type].Label, Config.Inventory[Type].Slots, Config.Inventory[Type].MaxWeight)
+    RegisterStash({
+        Type = Type,
+        InvId = InvId
+    })
 
     return true
 end)
@@ -131,10 +142,12 @@ lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Sou
         return {}
     end
 
+    local DumpsterAmount = math.random(Zone.Dumpsters[1], Zone.Dumpsters[2])
+
     Contract[Source] = {
         Type = 'DumpsterDive',
-        Dumpsters = math.random(Zone.Dumpsters[1], Zone.Dumpsters[2]),
-        XP = math.random(DConfig.XP[1], DConfig.XP[2]),
+        Dumpsters = DumpsterAmount,
+        XP = DConfig.XP * DumpsterAmount,
         Looted = 0
     }
 
@@ -174,7 +187,7 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
     exports['ox_inventory']:AddItem(Source, Reward.Item, Amount)
 
     if ContractData.Looted >= ContractData.Dumpsters then
-        AddXP(PlayerData.Job.Name, ContractData.XP * ContractData.Dumpsters)
+        AddXP(PlayerData.Job.Name, ContractData.XP)
 
         Util.Log(Source, ('Færdiggjorde en DumpsterDive kontrakt og modtog %s XP.'):format(tostring(ContractData.XP * ContractData.Dumpsters)))
         
@@ -272,9 +285,10 @@ lib.callback.register('mani-pawnshop:server:GetRefinerState', function(Source, D
     return Pawnshops[Job].States.Refiner
 end)
 
-lib.callback.register('mani-pawnshop:server:StartRefining', function(Source, Data)
-    local Job = Data.Job
-    if not Job then return false, 'Der skete en fejl.' end
+lib.callback.register('mani-pawnshop:server:StartRefining', function(Source)
+    local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
+    if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
+    local Job = PlayerData.Job.Name
 
     local PawnData = Pawnshops[Job]
     if not PawnData then return false, 'Der skete en fejl.' end
@@ -289,7 +303,14 @@ lib.callback.register('mani-pawnshop:server:StartRefining', function(Source, Dat
     local StashId = ('%s_stash'):format(Job)
 
     local StashInv = exports['ox_inventory']:GetInventory(StashId)
-    if not StashInv then Pawnshops[Job].States.Refiner = false return false, 'Åben jeres stash først.' end
+    if not StashInv then
+        RegisterStash({
+            Type = 'stash',
+            InvId = StashId
+        })
+
+        StashInv = exports['ox_inventory']:GetInventory(StashId)
+    end
 
     local RefinerInv = exports['ox_inventory']:GetInventory(RefinerId)
     if not RefinerInv then Pawnshops[Job].States.Refiner = false return false, 'Åben Refiner stash først.' end
@@ -297,6 +318,15 @@ lib.callback.register('mani-pawnshop:server:StartRefining', function(Source, Dat
     exports['ox_inventory']:ClearInventory(RefinerId)
 
     CreateThread(function()
+        Pawnshops[Job].Employees[PlayerData.Identifier] = Pawnshops[Job].Employees[PlayerData.Identifier] or {
+            Name = PlayerData.Character.Fullname,
+            Identifier = PlayerData.Identifier,
+            Profit = 0,
+            Refined = 0
+        }
+
+        local MaterialWorth = Config.Orders.Worth['refinedmaterial'] or 0
+
         for i = 1, #RefinerInv.items do
             local ItemData = RefinerInv.items[i]
             local Item = ItemData.name
@@ -307,12 +337,61 @@ lib.callback.register('mani-pawnshop:server:StartRefining', function(Source, Dat
 
                 Wait(RefinerData.Time * Amount)
 
+                Pawnshops[Job].Employees[PlayerData.Identifier].Refined = Pawnshops[Job].Employees[PlayerData.Identifier].Refined + Amount
+
+                local TotalWorth = MaterialWorth * RefinerData.Reward * Amount
+                local MoneySpent = RefinerData.Price * Amount
+                local Profit = TotalWorth - MoneySpent
+
+                Pawnshops[Job].Employees[PlayerData.Identifier].Profit = Pawnshops[Job].Employees[PlayerData.Identifier].Profit + Profit
+
                 exports['ox_inventory']:AddItem(StashId, RefinerData.RewardItem or 'refinedmaterial', RefinerData.Reward * Amount)
             end
         end
+
+        MySQL.update.await('UPDATE `mani_pawnshops` SET `employees` = ? WHERE `job` = ?', {
+            json.encode(Pawnshops[Job].Employees),
+            Job
+        })
 
         Pawnshops[Job].States.Refiner = false
     end)
 
     return true
+end)
+
+lib.callback.register('mani-pawnshop:server:PrintCheck', function(Source, Employee)
+    local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
+    if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
+
+    local Job = PlayerData.Job.Name
+    local PawnData = Pawnshops[Job]
+    if not PawnData then return false, 'Der skete en fejl.' end
+    local EmpData = Pawnshops[Job].Employees[Employee.Identifier]
+    if not EmpData then return false, 'Der skete en fejl.' end
+
+    local Percentage = Employee.Percentage
+    local Amount = math.floor((EmpData.Profit * Percentage) / 100)
+
+    local PrinterId = ('%s_printer'):format(Job)
+    local PrinterInv = exports['ox_inventory']:GetInventory(PrinterId)
+    if not PrinterInv then
+        RegisterStash({
+            Type = 'printer',
+            InvId = PrinterId
+        })
+
+        PrinterInv = exports['ox_inventory']:GetInventory(PrinterId)
+    end
+
+    exports['mani-checks']:RegisterCheck({
+        Identifier = Employee.Identifier,
+        Name = EmpData.Name,
+        Amount = Amount,
+        InvId = PrinterId
+    })
+
+    Pawnshops[Job].Employees[Employee.Identifier] = nil
+    
+    return Pawnshops[Job].Employees
 end)

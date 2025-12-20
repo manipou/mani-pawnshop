@@ -2,24 +2,38 @@
 	import { visibilityStore as visibility, ShopIndex, PawnData, Muted, Config } from "$lib/stores/VisibilityStore";
 	import { fetchNui } from "$lib/utils/fetchNui";
 	import { onMount } from 'svelte';
+	
+	// Import assets
+	import screenBg from '../assets/screen.png';
+	import clickSound from '../assets/sounds/click.mp3';
+	import closeSound from '../assets/sounds/close.mp3';
+	import openSound from '../assets/sounds/open.mp3';
 	let isOpen = false;
 	let isShuttingDown = false;
 	let currentTime = '';
 	let currentDate = '';
 	let activeTab = 'contracts';
 
-	function TurnOff() {
+	function TurnOff(HideUI: boolean = false) {
 		PlaySound("close", 0.1);
 		isShuttingDown = true;
 		setTimeout(() => {
 			visibility.hide();
 			isShuttingDown = false;
+			if (HideUI) {
+				fetchNui("hideUI");
+			}
 		}, 2000);
 	}
 
 	function PlaySound(Sound: string, Volume: number) {
 		if ($Muted) return;
-		const audio = new Audio(`/src/assets/sounds/${Sound}.mp3`);
+		const soundMap: { [key: string]: string } = {
+			click: clickSound,
+			close: closeSound,
+			open: openSound
+		};
+		const audio = new Audio(soundMap[Sound]);
 		audio.volume = Volume;
 		audio.play();
 	}
@@ -39,7 +53,7 @@
 	const Tabs = [
 		{ Id: 'contracts', Label: 'Kontrakter', BossOnly: false },
 		{ Id: 'orders', Label: 'Ordrer', BossOnly: false },
-		{ Id: 'workers', Label: 'Arbejdere', BossOnly: true },
+		{ Id: 'pay', Label: 'Lønning', BossOnly: true },
 	];
 
 	interface Order {
@@ -53,6 +67,7 @@
 	}
 
 	let Orders: Order[] = [];
+	let employeePayPercentages: { [key: string]: number } = {};
 
 	function formatTimeRemaining(createdAt: number): string {
 		const expireMinutes = $Config?.Orders?.Expire || 120;
@@ -91,7 +106,31 @@
 			fetchNui('FetchOrders').then((FetchedOrders: any) => {
 				Orders = FetchedOrders;
 			});
+		} else if (TabId === 'pay') {
+			// Initialize percentages for each employee if not set
+			if ($PawnData.Employees) {
+				Object.keys($PawnData.Employees).forEach(id => {
+					if (!employeePayPercentages[id]) {
+						employeePayPercentages[id] = 50; // Default 50%
+					}
+				});
+			}
 		}
+	}
+
+	function printCheck(employee: any) {
+		PlaySound("click", 0.2);
+		const percentage = employeePayPercentages[employee.Identifier] || 50;
+		fetchNui('PrintCheck', {
+			Identifier: employee.Identifier,
+			Percentage: percentage,
+		}).then((NewEmployees: any) => {
+			if (NewEmployees) {
+				PawnData.update(data => {
+					return { ...data, Employees: NewEmployees };
+				});
+			}
+		});
 	}
 
 	function updateTime() {
@@ -110,9 +149,17 @@
 			isOpen = true;
 		}, 1000);
 
+		const keyHandler = (e: KeyboardEvent) => {
+			if ($visibility && e.code === "Escape") {
+				TurnOff(true);
+			}
+		};
+
+		window.addEventListener("keydown", keyHandler);
 		return () => {
 			clearTimeout(timer);
 			clearInterval(timeInterval);
+			window.removeEventListener("keydown", keyHandler)
 		};
 	});
 </script>
@@ -197,6 +244,46 @@
 		animation: screenFadeOut 0.7s ease-out forwards;
 		animation-delay: 1.3s;
 	}
+
+	/* Retro XP-style slider */
+	input[type="range"] {
+		-webkit-appearance: none;
+		width: 100%;
+		height: 18px;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	input[type="range"]::-webkit-slider-track {
+		background: transparent;
+		height: 4px;
+	}
+
+	input[type="range"]::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		width: 12px;
+		height: 18px;
+		background: linear-gradient(135deg, #ece9d8 0%, #bfb9b1 100%);
+		border: 1px solid #808080;
+		box-shadow: inset 1px 1px #ffffff, inset -1px -1px #606060;
+		cursor: pointer;
+		margin-top: 0px;
+	}
+
+	input[type="range"]::-moz-range-track {
+		background: transparent;
+		height: 4px;
+	}
+
+	input[type="range"]::-moz-range-thumb {
+		width: 12px;
+		height: 18px;
+		background: linear-gradient(135deg, #ece9d8 0%, #bfb9b1 100%);
+		border: 1px solid #808080;
+		box-shadow: inset 1px 1px #ffffff, inset -1px -1px #606060;
+		cursor: pointer;
+		border-radius: 0;
+	}
 </style>
 
 <!-- Background with screen image -->
@@ -205,7 +292,7 @@
 	<div style="padding: 35px; background: linear-gradient(to bottom, #c8c8c8 0%, #a8a8a8 50%, #888888 100%); border-radius: 4px; box-shadow: 0 8px 30px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.4), inset 0 -2px 3px rgba(0,0,0,0.3); border: 2px solid #707070;">
 		<div 
 			class="flex items-center justify-center relative {isShuttingDown ? 'monitor-turning-off' : ''}"
-			style="width: 1632px; height: 918px; background-image: url('/src/assets/screen.png'); background-size: cover; background-position: center; box-shadow: inset 0 0 20px rgba(0,0,0,0.6);"
+			style="width: 1632px; height: 918px; background-image: url({screenBg}); background-size: cover; background-position: center; box-shadow: inset 0 0 20px rgba(0,0,0,0.6);"
 		>
 		<!-- Company Logo -->
 		{#if $Config?.Shops?.[$ShopIndex - 1]?.Logo}
@@ -470,6 +557,81 @@
 								</div>
 							</div>
 						{/each}
+							</div>
+						{/if}
+					
+					{:else if activeTab === 'pay'}
+						<!-- Pay Tab Content -->
+						<div class="mb-3">
+							<h2 class="text-sm font-bold mb-1" style="color: #0a246a;">Medarbejderlønninger</h2>
+							<p class="text-xs" style="color: #666;">Oversigt over alle medarbejdere og deres indtjening.</p>
+						</div>
+
+						{#if $PawnData.Employees && Object.keys($PawnData.Employees).length > 0}
+							<!-- Employees Grid -->
+							<div class="grid grid-cols-2 gap-3">
+								{#each Object.values($PawnData.Employees).sort((a, b) => (b.Profit || 0) - (a.Profit || 0)) as Employee}
+									<div
+										class="rounded flex flex-col"
+										style="background: #ffffff; border: 2px solid #d4d0c8; box-shadow: 2px 2px 4px rgba(0,0,0,0.1);"
+									>
+										<!-- Employee Header -->
+										<div class="p-3" style="background: #f0f0f0; border-bottom: 1px solid #d4d0c8;">
+											<div class="text-sm font-bold mb-1" style="color: #0a246a;">{Employee.Name || 'Ukendt'}</div>
+											<div class="flex items-center justify-between text-xs" style="color: #666;">
+												<span>Profit: <span class="font-bold" style="color: #0a246a;">{Employee.Profit?.toLocaleString() || 0} kr.</span></span>
+												<span>Raffineret: <span class="font-bold" style="color: #0a246a;">{Employee.Refined || 0}</span></span>
+											</div>
+										</div>
+
+										<div class="p-3 flex-grow flex flex-col">
+											{#if (Employee.Profit || 0) > 0}
+												<!-- Pay Controls -->
+												<div class="flex-grow flex flex-col justify-between">
+													<div class="mb-3">
+														<div class="flex items-center justify-between mb-2">
+															<span class="text-xs font-semibold" style="color: #1084d7;">Udbetaling:</span>
+															<span class="text-xs font-bold" style="color: #0a246a;">{Math.floor(((Employee.Profit || 0) * (employeePayPercentages[Employee.Identifier] || 50)) / 100).toLocaleString()} kr.</span>
+														</div>
+														<!-- Slider -->
+														<div class="mb-2 flex items-center" style="background: #d4d0c8; padding: 1px 4px; border: 1px solid #808080; box-shadow: inset 1px 1px 2px rgba(0,0,0,0.3); height: 6px;">
+															<input 
+																type="range" 
+																min="1" 
+																max="100" 
+																bind:value={employeePayPercentages[Employee.Identifier]}
+																class="w-full"
+															/>
+														</div>
+														<div class="flex justify-between text-[10px]" style="color: #808080;">
+															<span>1%</span>
+															<span class="font-bold" style="color: #0a246a;">{employeePayPercentages[Employee.Identifier] || 50}%</span>
+															<span>100%</span>
+														</div>
+													</div>
+													<button 
+														class="xp-button w-full px-3 py-2 text-xs font-bold rounded" 
+														style="background: linear-gradient(135deg, #ece9d8 0%, #bfb9b1 100%); border: 1px solid #dfdfdf; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080; transition: all 0.05s ease;"
+														on:click={() => printCheck(Employee)}
+													>
+														Print Check
+													</button>
+												</div>
+											{:else}
+												<div class="flex items-center justify-center flex-grow">
+													<span class="text-xs" style="color: #808080;">Ingen profit</span>
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<div class="flex items-center justify-center h-64">
+								<div class="text-center">
+									<p class="text-sm font-semibold mb-1" style="color: #0a246a;">Ingen medarbejdere</p>
+									<p class="text-xs" style="color: #666;">Der er ingen medarbejdere registreret i øjeblikket</p>
+								</div>
 							</div>
 						{/if}
 					

@@ -8,6 +8,7 @@ Config.Shops = {
         Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
         Refiner = vec3(448.53, -1482.36, 29.35),
         Computer = vec3(451.82, -1461.85, 29.10),
+        Printer = vec3(451.73, -1463.57, 29.24),
         Stash = vec3(454.36, -1471.53, 29.40),
         Tray = {
             vec3(449.73, -1469.44, 29.30),
@@ -32,6 +33,11 @@ Config.Inventory = {
         Label = 'Refiner',
         Slots = 20,
         MaxWeight = 120000,
+    },
+    ['printer'] = {
+        Label = 'Printer',
+        Slots = 5,
+        MaxWeight = 30000,
     },
     ['stash'] = {
         Label = 'Opbevaring',
@@ -71,7 +77,7 @@ Config.Orders = {
     Interval = { 1, 2 }, -- Minutes
     Expire = 120, -- Minutes
     Worth = {
-        ['refinedmaterial'] = 7500
+        ['refinedmaterial'] = 500
     },
     Types = {
         {
@@ -106,68 +112,73 @@ Config.Orders = {
 
 Config.Refiner = {
     ['necklace'] = {
-        Label = 'Necklace',
-        Reward = 1000,
+        Price = 700,
+        Reward = 2,
+        Time = 400
+    },
+    ['coins'] = {
+        Price = 2300,
+        Reward = 6,
         Time = 400
     },
     ['diamond_necklace'] = {
-        Label = 'Diamond Necklace',
-        Reward = 3250,
+        Price = 2900,
+        Reward = 8,
         Time = 650
     },
     ['ring'] = {
-        Label = 'Ring',
-        Reward = 750,
+        Price = 450,
+        Reward = 2,
         Time = 400
     },
     ['diamond_ring'] = {
-        Label = 'Diamond Ring',
-        Reward = 3250,
+        Price = 3900,
+        Reward = 10,
         Time = 650
     },
     ['watch'] = {
-        Label = 'Watch',
-        Reward = 750,
+        Price = 1200,
+        Reward = 3,
         Time = 400
     },
     ['luxurious_watch'] = {
-        Label = 'Luxurious Watch',
-        Reward = 2950,
+        Price = 3100,
+        Reward = 10,
         Time = 650
     },
     ['gold_bar'] = {
-        Label = 'Gold Bar',
-        Reward = 3000,
+        Price = 3300,
+        Reward = 9,
         Time = 1000
     },
     ['diamantboks'] = {
-        Label = 'Diamond Box',
-        Reward = 3900,
+        Price = 4300,
+        Reward = 11,
         Time = 400
     },
     ['skull_art'] = {
-        Label = 'Skull Art',
-        Reward = 2000,
+        Price = 2000,
+        Reward = 5,
         Time = 1000
     },
     ['painting1'] = {
-        Label = 'Painting 1',
-        Reward = 2500,
+        Price = 3700,
+        Reward = 8,
         Time = 500
     },
     ['painting2'] = {
-        Label = 'Painting 2',
-        Reward = 5000,
+        Price = 7000,
+        Reward = 15,
         Time = 750
     },
     ['painting3'] = {
-        Label = 'Painting 3',
-        Reward = 15000,
+        Price = 22000,
+        Reward = 50,
         Time = 1000
     },
     ['painting4'] = {
-        Label = 'Painting 4',
-        Reward = 30000,
+        Price = 55000,
+        Reward = 120,
         Time = 2000
     }
 }
