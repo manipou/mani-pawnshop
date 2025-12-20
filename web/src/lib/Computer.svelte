@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { visibilityStore as visibility, ShopIndex, PawnData, Config } from "$lib/stores/VisibilityStore";
+	import { visibilityStore as visibility, ShopIndex, PawnData, Muted, Config } from "$lib/stores/VisibilityStore";
 	import { fetchNui } from "$lib/utils/fetchNui";
 	import { onMount } from 'svelte';
 	let isOpen = false;
@@ -18,9 +18,16 @@
 	}
 
 	function PlaySound(Sound: string, Volume: number) {
+		if ($Muted) return;
 		const audio = new Audio(`/src/assets/sounds/${Sound}.mp3`);
 		audio.volume = Volume;
 		audio.play();
+	}
+
+	function toggleMute() {
+		$Muted = !$Muted;
+		fetchNui('SetMute', $Muted);
+		PlaySound("click", 0.2);
 	}
 	
 	const Contracts = [
@@ -30,8 +37,9 @@
 	];
 
 	const Tabs = [
-		{ Id: 'contracts', Label: 'Kontrakter' },
-		{ Id: 'orders', Label: 'Ordrer' },
+		{ Id: 'contracts', Label: 'Kontrakter', BossOnly: false },
+		{ Id: 'orders', Label: 'Ordrer', BossOnly: false },
+		{ Id: 'workers', Label: 'Arbejdere', BossOnly: true },
 	];
 
 	interface Order {
@@ -212,9 +220,42 @@
 		{/if}
 		
 		<!-- Time and Date Display -->
-		<div class="absolute text-white text-right" style="bottom: 5px; right: 8px; text-shadow: 0.5px 0.5px 1px rgba(0,0,0,0.6);">
-			<div class="font-semibold" style="font-size: 13px;">{currentTime}</div>
-			<div style="font-size: 11px;">{currentDate}</div>
+		<div class="absolute flex items-center gap-4" style="bottom: 5px; right: 12px;">
+			<!-- Mute Button (Retro Win95 Style) -->
+			<button 
+				on:click={toggleMute}
+				class="xp-button flex items-center justify-center"
+				style="width: 22px; height: 22px; background: #c0c0c0; border-top: 1px solid #ffffff; border-left: 1px solid #ffffff; border-right: 1px solid #000000; border-bottom: 1px solid #000000; box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #808080;"
+				title={$Muted ? 'Unmute' : 'Mute'}
+			>
+				<svg 
+					xmlns="http://www.w3.org/2000/svg" 
+					width="11" 
+					height="11" 
+					viewBox="0 0 24 24" 
+					fill="none" 
+					stroke="#000000" 
+					stroke-width="2.5" 
+					stroke-linecap="square" 
+					stroke-linejoin="miter"
+				>
+					{#if $Muted}
+						<!-- Muted Icon -->
+						<path d="M11 5L6 9H2v6h4l5 4V5z"/>
+						<line x1="23" y1="9" x2="17" y2="15"/>
+						<line x1="17" y1="9" x2="23" y2="15"/>
+					{:else}
+						<!-- Unmuted Icon -->
+						<path d="M11 5L6 9H2v6h4l5 4V5z"/>
+						<path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+					{/if}
+				</svg>
+			</button>
+			
+			<div class="text-white text-right" style="text-shadow: 0.5px 0.5px 1px rgba(0,0,0,0.6);">
+				<div class="font-semibold" style="font-size: 13px;">{currentTime}</div>
+				<div style="font-size: 11px;">{currentDate}</div>
+			</div>
 		</div>
 		
 		<!-- Taskbar with Program Icon -->
@@ -258,16 +299,18 @@
 				<!-- Vertical Tabs on Left -->
 				<div class="flex flex-col" style="width: 100px; background: #ece9d8; border-right: 1px solid #808080;">
 					{#each Tabs as Tab}
-						<button 
-							class="py-3 px-2 text-xs font-semibold border-b" 
-							style="{activeTab === Tab.Id ? 'background: #ffffff; border-left: 3px solid #0a246a; color: #0a246a;' : 'background: #ffffff; color: #808080; border-left: 3px solid transparent;'} border-bottom: 1px solid #808080;"
-							on:click={() => { 
-								PlaySound("click", 0.2);
-								SelectTab(Tab.Id);
-							}}
-						>
-							{Tab.Label}
-						</button>
+						{#if !Tab.BossOnly || $PawnData.IsBoss}
+							<button 
+								class="py-3 px-2 text-xs font-semibold border-b" 
+								style="{activeTab === Tab.Id ? 'background: #ffffff; border-left: 3px solid #0a246a; color: #0a246a;' : 'background: #ffffff; color: #808080; border-left: 3px solid transparent;'} border-bottom: 1px solid #808080;"
+								on:click={() => { 
+									PlaySound("click", 0.2);
+									SelectTab(Tab.Id);
+								}}
+							>
+								{Tab.Label}
+							</button>
+						{/if}
 					{/each}
 				</div>
 
@@ -352,9 +395,27 @@
 					
 					{:else if activeTab === 'orders'}
 						<!-- Orders Content -->
-						<div class="mb-3">
-							<h2 class="text-sm font-bold mb-2" style="color: #0a246a;">Materiale Forespørgsler</h2>
-							<p class="text-xs mb-3" style="color: #666;">Virksomheder der ønsker at købe materialer fra pantelåneren.</p>
+						<div class="mb-3 flex justify-between items-center">
+							<div>
+								<h2 class="text-sm font-bold mb-1" style="color: #0a246a;">Materiale Forespørgsler</h2>
+								<p class="text-xs" style="color: #666;">Virksomheder der ønsker at købe materialer fra pantelåneren.</p>
+							</div>
+							<!-- Refresh Button -->
+							<button 
+								class="xp-button flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded" 
+								style="background: linear-gradient(135deg, #ece9d8 0%, #bfb9b1 100%); border: 1px solid #dfdfdf; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080; transition: all 0.05s ease;"
+								on:click={() => {
+									PlaySound("click", 0.2);
+									fetchNui('FetchOrders').then((FetchedOrders: any) => {
+										Orders = FetchedOrders;
+									});
+								}}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+								</svg>
+								Opdater
+							</button>
 						</div>
 
 						{#if Orders.length === 0}

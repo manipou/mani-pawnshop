@@ -23,15 +23,10 @@ CreateThread(function()
         local Metadata = json.decode(ShopData.metadata) or {}
 
         Pawnshops[ShopData.job] = {
-            Metadata = Metadata
+            Metadata = Metadata,
+            States = {}
         }
     end
-
-    exports['mani-traders']:RegisterTrader('PawnshopRefiner', {
-        Items = Config.Refiner.Items,
-        Label = 'Refiner',
-        Currency = Config.Refiner.Currency
-    })
 
     Config.Jobs = {}
 
@@ -45,7 +40,8 @@ CreateThread(function()
             })
 
             Pawnshops[Shop.Job] = {
-                Metadata = {}
+                Metadata = {},
+                States = {}
             }
         end
     end
@@ -109,12 +105,13 @@ end)
 lib.callback.register('mani-pawnshop:server:RegisterStash', function(Source, Data)
     local Index = Data.Index
     local Job = Data.Job
+    local Type = Data.Type
 
-    if not Index or not Job then return false end
+    if not Type or not Job then return false end
 
-    local TrayId = ('%s_tray_%s'):format(Job, Index)
+    local InvId = ('%s_%s%s'):format(Job, Type, Index and ('_%s'):format(Index) or '')
 
-    exports['ox_inventory']:RegisterStash(TrayId, 'Bakke', Config.Tray.Slots, Config.Tray.MaxWeight)
+    exports['ox_inventory']:RegisterStash(InvId, Config.Inventory[Type].Label, Config.Inventory[Type].Slots, Config.Inventory[Type].MaxWeight)
 
     return true
 end)
@@ -261,6 +258,61 @@ lib.callback.register('mani-pawnshop:server:CompleteOrder', function(Source)
     end
 
     InProgress[Source] = nil
+
+    return true
+end)
+
+lib.callback.register('mani-pawnshop:server:GetRefinerState', function(Source, Data)
+    local Job = Data.Job
+    if not Job then return true end
+
+    local PawnData = Pawnshops[Job]
+    if not PawnData then return true end
+
+    return Pawnshops[Job].States.Refiner
+end)
+
+lib.callback.register('mani-pawnshop:server:StartRefining', function(Source, Data)
+    local Job = Data.Job
+    if not Job then return false, 'Der skete en fejl.' end
+
+    local PawnData = Pawnshops[Job]
+    if not PawnData then return false, 'Der skete en fejl.' end
+
+    if Pawnshops[Job].States.Refiner then
+        return false, 'Refineren er i brug lige nu.'
+    end
+
+    Pawnshops[Job].States.Refiner = true
+
+    local RefinerId = ('%s_refiner'):format(Job)
+    local StashId = ('%s_stash'):format(Job)
+
+    local StashInv = exports['ox_inventory']:GetInventory(StashId)
+    if not StashInv then Pawnshops[Job].States.Refiner = false return false, 'Åben jeres stash først.' end
+
+    local RefinerInv = exports['ox_inventory']:GetInventory(RefinerId)
+    if not RefinerInv then Pawnshops[Job].States.Refiner = false return false, 'Åben Refiner stash først.' end
+
+    exports['ox_inventory']:ClearInventory(RefinerId)
+
+    CreateThread(function()
+        for i = 1, #RefinerInv.items do
+            local ItemData = RefinerInv.items[i]
+            local Item = ItemData.name
+            local Amount = ItemData.count
+
+            if Config.Refiner[Item] then
+                local RefinerData = Config.Refiner[Item]
+
+                Wait(RefinerData.Time * Amount)
+
+                exports['ox_inventory']:AddItem(StashId, RefinerData.RewardItem or 'refinedmaterial', RefinerData.Reward * Amount)
+            end
+        end
+
+        Pawnshops[Job].States.Refiner = false
+    end)
 
     return true
 end)

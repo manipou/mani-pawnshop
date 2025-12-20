@@ -16,3 +16,5 @@ export const ShopIndex = writable<number>(1);
 export const Config = writable({});
 
 export const PawnData = writable({});
+
+export const Muted = writable<boolean>(false);

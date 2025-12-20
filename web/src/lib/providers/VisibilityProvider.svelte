@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { visibilityStore as visibility, ShopIndex, PawnData, Config } from "$lib/stores/VisibilityStore";
+	import { visibilityStore as visibility, ShopIndex, PawnData, Muted, Config } from "$lib/stores/VisibilityStore";
 	import { useNuiEvent } from "$lib/hooks/useNuiEvent";
 	import { fetchNui } from "$lib/utils/fetchNui";
 
@@ -23,8 +23,9 @@
 
 	});
 
-	useNuiEvent<{ Config: any }>("InitializeUI", (Data: { Config: any }) => {
+	useNuiEvent<{ Config: any, Muted: boolean }>("InitializeUI", (Data: { Config: any, Muted: boolean }) => {
 		Config.set(Data.Config);
+		Muted.set(Data.Muted);
 	});
 </script>
 

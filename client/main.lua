@@ -21,6 +21,11 @@ local function OpenComputer(ShopId)
 
     ComputerData.Level, ComputerData.MaxXP, ComputerData.IsMaxLevel = GetLevel(ComputerData.XP)
 
+    local PlayerData = exports['mani-bridge']:GetPlayerData()
+    if not PlayerData then return end
+
+    ComputerData.IsBoss = PlayerData.Job.IsBoss
+
     SendNUIMessage({
         action = 'OpenMenu',
         data = {
@@ -46,12 +51,12 @@ local function EnterPawnshop(Data)
             debugColour = vec4(51, 54, 92, 50.0),
             debug = Config.Debug,
             options = {
-                label = 'Åben Bakke',
+                label = 'Åben bakke',
                 icon = 'fa-solid fa-box-open',
                 distance = 2.0,
                 onSelect = function()
                     if not exports['ox_inventory']:openInventory('stash', TrayId) then
-                        local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Index = i, Job = Shop.Job })
+                        local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Index = i, Type = 'tray', Job = Shop.Job })
                         if Success then exports['ox_inventory']:openInventory('stash', TrayId) end
                     end
                 end
@@ -67,12 +72,52 @@ local function EnterPawnshop(Data)
         debugColour = vec4(51, 54, 92, 50.0),
         debug = Config.Debug,
         options = {
-            label = 'Brug Refiner',
-            icon = 'fa-solid fa-recycle',
+            {
+                label = 'Åben refiner',
+                icon = 'fa-solid fa-box-archive',
+                group = Shop.Job,
+                distance = 2.0,
+                onSelect = function()
+                    local RefinerState = lib.callback.await('mani-pawnshop:server:GetRefinerState', false, { Job = Shop.Job })
+                    if RefinerState then lib.notify({ title = 'Refiner', description = 'Refineren er i brug lige nu.', type = 'info' }) return end
+
+                    local RefinerID = ('%s_refiner'):format(Shop.Job)
+                    if not exports['ox_inventory']:openInventory('stash', RefinerID) then
+                        local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Type = 'refiner', Job = Shop.Job })
+                        if Success then exports['ox_inventory']:openInventory('stash', RefinerID) end
+                    end
+                end
+            },
+            {
+                label = 'Start refiner',
+                icon = 'fa-solid fa-recycle',
+                group = Shop.Job,
+                distance = 2.0,
+                onSelect = function()
+                    local Success, Error = lib.callback.await('mani-pawnshop:server:StartRefining', false, { Job = Shop.Job })
+                    if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved start af refinering.', type = 'error' }) end
+                end
+            },
+        }
+    })
+
+    Targets[#Targets + 1] = exports['ox_target']:addSphereZone({ -- Stash
+        coords = Shop.Stash,
+        name = ('%s_stash'):format(Shop.Job),
+        radius = 0.5,
+        debugColour = vec4(51, 54, 92, 50.0),
+        debug = Config.Debug,
+        options = {
+            label = 'Åben stash',
+            icon = 'fa-solid fa-box-archive',
             group = Shop.Job,
             distance = 2.0,
             onSelect = function()
-                exports['mani-traders']:OpenTrade('PawnshopRefiner')
+                local StashID = ('%s_stash'):format(Shop.Job)
+                if not exports['ox_inventory']:openInventory('stash', StashID) then
+                    local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Type = 'stash', Job = Shop.Job })
+                    if Success then exports['ox_inventory']:openInventory('stash', StashID) end
+                end
             end
         }
     })
@@ -84,7 +129,7 @@ local function EnterPawnshop(Data)
         debugColour = vec4(51, 54, 92, 50.0),
         debug = Config.Debug,
         options = {
-            label = 'Brug Computer',
+            label = 'Brug computer',
             icon = 'fa-solid fa-computer',
             group = Shop.Job,
             distance = 2.0,
@@ -127,13 +172,14 @@ RegisterNuiCallback('FetchOrders', function(_, cb)
     cb(Orders)
 end)
 
-RegisterNUICallback('getLocale', function(_, cb)
-    cb({locale = Config.Locale})
-end)
-
 RegisterNUICallback('hideUI', function(_, cb)
     cb({})
     SetNuiFocus(false, false)
+end)
+
+RegisterNUICallback('SetMute', function(State, cb)
+    cb({})
+    SetResourceKvpInt('mani-pawnshop-muted', State and 1 or 0)
 end)
 
 CreateThread(function()
@@ -143,8 +189,7 @@ CreateThread(function()
         action = 'InitializeUI',
         data = {
             Config = Config,
+            Muted = GetResourceKvpInt('mani-pawnshop-muted') == 1
         }
     })
-
-    OpenComputer(1)
 end)
