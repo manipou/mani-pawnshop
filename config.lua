@@ -1,10 +1,10 @@
 local Config = {}
 
-Config.Debug = true
+Config.Debug = false
 
 Config.Shops = {
     {
-        Job = 'realestate',
+        Job = 'pantestjerne',
         Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
         Refiner = vec3(448.53, -1482.36, 29.35),
         Computer = vec3(451.82, -1461.85, 29.10),
@@ -26,7 +26,7 @@ Config.Shops = {
 Config.Inventory = {
     ['tray'] = {
         Label = 'Bakke',
-        Slots = 5,
+        Slots = 15,
         MaxWeight = 30000,
     },
     ['refiner'] = {
@@ -56,11 +56,13 @@ Config.Contracts = {
     ['DumpsterDive'] = {
         Reward = {
             Item = 'refinedmaterial',
-            Amount = { 1, 3 }
+            Amount = { 6, 8 }
         },
-        SearchTime = 100,
+        SearchTime = 2500,
         Zones = {
             { Coords = vec3(1122.70, -546.00, 0.00), Radius = 300.0, Dumpsters = { 10, 16 } },
+            { Coords = vec3(-182.69, -1304.80, 00.00), Radius = 200.0, Dumpsters = { 10, 16 } },
+            { Coords = vec3(-662.68, -862.78, 00.00), Radius = 250.0, Dumpsters = { 10, 16 } }
         },
         DumpsterProps = {
             'prop_dumpster_4b',
@@ -69,12 +71,13 @@ Config.Contracts = {
             'prop_dumpster_02b',
             'prop_dumpster_02a'
         },
-        XP = 5 -- Per dumpster
+        Cooldown = 10 * 1000 * 60,
+        XP = 3 -- Per dumpster
     }
 }
 
 Config.Orders = {
-    Interval = { 1, 2 }, -- Minutes
+    Interval = { 30, 45 }, -- Minutes
     Expire = 120, -- Minutes
     Worth = {
         ['refinedmaterial'] = 500
@@ -82,29 +85,20 @@ Config.Orders = {
     Types = {
         {
             Label = 'Mandehul A/S',
-            Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
+            Logo = 'https://files.fivemerr.com/images/5e1ddc1b-f3fa-4c7b-b164-96964e05d258.png',
             Coords = vec4(539.95, -1655.64, 27.83, 230.59),
             Items = 1,
             InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 5, 10 } }
+                { Item = 'refinedmaterial', Amount = { 500, 1000 } }
             }
         },
         {
             Label = 'Burgershot',
-            Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
+            Logo = 'https://files.fivemerr.com/images/be2f4265-2def-45c2-8ee4-95f4a1d6a5bc.png',
             Coords = vec4(-1175.75, -899.56, 12.70, 217.64),
             Items = 1,
             InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 5, 10 } }
-            }
-        },
-        {
-            Label = 'Mechanigger',
-            Logo = 'https://files.fivemerr.com/images/409553aa-af17-47d9-a2b7-e37aecbe5442.png',
-            Coords = vec4(1142.77, -792.44, 56.60, 89.92),
-            Items = 1,
-            InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 5, 10 } }
+                { Item = 'refinedmaterial', Amount = { 400, 900 } }
             }
         },
     }

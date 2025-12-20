@@ -26,11 +26,12 @@ local function DumpsterDive()
     local ZoneIndex = math.random(1, #DConfig.Zones)
     local Zone = DConfig.Zones[ZoneIndex]
 
-    lib.notify({ title = 'Kontrakt startet', description = 'Område markeret på mappet', type = 'success' })
-
-    Contract = lib.callback.await('mani-pawnshop:server:StartDumpsterContract', false, {
+    Contract, Error = lib.callback.await('mani-pawnshop:server:StartDumpsterContract', false, {
         Zone = ZoneIndex,
     })
+    if not Contract then lib.notify({ title = 'Fejl', description = Error or 'Der skete en fejl ved start af kontrakt.', type = 'error' }) return end
+
+    lib.notify({ title = 'Kontrakt startet', description = 'Område markeret på mappet', type = 'success' })
 
     Blips[#Blips + 1] = Util.CreateRadiusBlip({
         Coords = Zone.Coords,

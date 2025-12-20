@@ -27,7 +27,8 @@ CreateThread(function()
         Pawnshops[ShopData.job] = {
             Metadata = Metadata,
             Employees = Employees,
-            States = {}
+            States = {},
+            Cooldowns = {}
         }
     end
 
@@ -45,14 +46,16 @@ CreateThread(function()
             Pawnshops[Shop.Job] = {
                 Metadata = {},
                 Employees = {},
-                States = {}
+                States = {},
+                Cooldowns = {}
             }
         end
     end
 
     while true do
-        local OrderType = lib.table.deepclone(Config.Orders.Types[math.random(1, #Config.Orders.Types)])
+        Wait(math.random(Config.Orders.Interval[1], Config.Orders.Interval[2]) * 1000 * 60)
 
+        local OrderType = lib.table.deepclone(Config.Orders.Types[math.random(1, #Config.Orders.Types)])
         local OrderIndex = #Orders + 1
         OrderType.Id = OrderIndex
         OrderType.CreatedAt = os.time()
@@ -78,8 +81,6 @@ CreateThread(function()
         SetTimeout(Config.Orders.Expire * 60 * 1000, function()
             Orders[OrderIndex] = nil
         end)
-
-        Wait(math.random(Config.Orders.Interval[1], Config.Orders.Interval[2]) * 1000 * 60)
     end
 end)
 
@@ -89,6 +90,7 @@ local function RegisterStash(Data)
 
     exports['ox_inventory']:RegisterStash(InvId, Config.Inventory[Type].Label, Config.Inventory[Type].Slots, Config.Inventory[Type].MaxWeight)
 end
+
 local function AddXP(Job, Amount)
     Pawnshops[Job].Metadata.XP = (Pawnshops[Job].Metadata.XP or 0) + Amount
 
@@ -96,6 +98,13 @@ local function AddXP(Job, Amount)
         json.encode(Pawnshops[Job].Metadata),
         Job
     })
+end
+
+local function SetCooldown(Job, ContractType)
+    Pawnshops[Job].Cooldowns[ContractType] = true
+    SetTimeout(Config.Contracts[ContractType].Cooldown, function()
+        Pawnshops[Job].Cooldowns[ContractType] = false
+    end)
 end
 
 lib.callback.register('mani-pawnshop:server:GetOrders', function(Source) return Orders end)
@@ -127,11 +136,89 @@ lib.callback.register('mani-pawnshop:server:RegisterStash', function(Source, Dat
     return true
 end)
 
+lib.callback.register('mani-pawnshop:server:BuyFromTray', function(Source, Data)
+    local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
+    if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
+    local Job = PlayerData.Job.Name
+
+    if not Pawnshops[Job] then return false, 'Der skete en fejl.' end
+
+    local TrayIndex = Data.Index
+    if not TrayIndex or type(TrayIndex) ~= 'number' then return false, 'Der skete en fejl.' end
+
+    local TrayId = ('%s_tray_%s'):format(Job, TrayIndex)
+
+    local PlayerPedId = GetPlayerPed(Source)
+    local PlayerCoords = GetEntityCoords(PlayerPedId)
+
+    local NearbyPlayers = lib.getNearbyPlayers(PlayerCoords, 5.0)
+
+    local PlayerTable = {}
+
+    for i = 1, #NearbyPlayers do
+        local NearbyPlayer = NearbyPlayers[i]
+        if Config.Debug or NearbyPlayer ~= Source then
+            local TargetData = exports['mani-bridge']:GetPlayerData(NearbyPlayer.id)
+            if TargetData then
+                local PlayerName = TargetData.Character.Fullname
+                PlayerTable[#PlayerTable + 1] = {
+                    label = PlayerName,
+                    value = NearbyPlayer.id,
+                }
+            end
+        end
+    end
+
+    if not next(PlayerTable) then return false, 'Ingen spillere i nærheden.' end
+
+    local TargetSource = lib.callback.await('mani-pawnshop:client:SelectPlayer', Source, PlayerTable)
+    if not TargetSource then return false, 'Køb annulleret.' end
+
+    local TrayInv = exports['ox_inventory']:GetInventory(TrayId)
+    if not TrayInv then return false, 'Bakken er tom.' end
+    
+    local TotalWorth = 0
+
+    for i = 1, #TrayInv.items do
+        local ItemData = TrayInv.items[i]
+        local Item = ItemData.name
+        local Amount = ItemData.count
+
+        if Config.Refiner[Item] then
+            local RefinerData = Config.Refiner[Item]
+            local ItemWorth = RefinerData.Price * Amount
+
+            TotalWorth = TotalWorth + ItemWorth
+
+            exports['ox_inventory']:RemoveItem(TrayId, Item, Amount)
+            exports['ox_inventory']:AddItem(TargetSource, Item, Amount)
+        end
+    end
+
+    if TotalWorth > 0 then
+        local JobAccount = Util.GetJobAccount(Job)
+        if JobAccount < TotalWorth then return false, 'Der er ikke nok penge på jobkontoen.' end
+
+        Util.RemoveMoneyForJob(Job, TotalWorth)
+        exports['mani-bridge']:AddMoney(TargetSource, 'bank', TotalWorth)
+    end
+
+    return true
+end)
+
 lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Source, Data)
+    local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
+    if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
+
+    if not Pawnshops[PlayerData.Job.Name] then return false, 'Der skete en fejl.' end
+
+    if Pawnshops[PlayerData.Job.Name].Cooldowns['DumpsterDive'] then return false, 'Du skal vente lidt før du kan starte en ny kontrakt.' end
+    SetCooldown(PlayerData.Job.Name, 'DumpsterDive')
+
     local ZoneIndex = Data.Zone
     if not ZoneIndex or type(ZoneIndex) ~= 'number' then
         Util.ACLog(Source, ('%s [%s] Forsøgte at køre en Pawnshop funktion med forkerte parameters.'):format(GetPlayerName(Source), Source))
-        return {}
+        return false, 'Der skete en fejl.'
     end
 
     local DConfig = Config.Contracts['DumpsterDive']
@@ -139,7 +226,7 @@ lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Sou
 
     if not Zone then
         Util.ACLog(Source, ('%s [%s] Forsøgte at starte en DumpsterDive kontrakt med en ugyldig zone index (%s).'):format(GetPlayerName(Source), Source, tostring(ZoneIndex)))
-        return {}
+        return false, 'Der skete en fejl.'
     end
 
     local DumpsterAmount = math.random(Zone.Dumpsters[1], Zone.Dumpsters[2])
@@ -367,11 +454,15 @@ lib.callback.register('mani-pawnshop:server:PrintCheck', function(Source, Employ
     local Job = PlayerData.Job.Name
     local PawnData = Pawnshops[Job]
     if not PawnData then return false, 'Der skete en fejl.' end
+    if not Job.IsBoss then return false, 'Du har ikke adgang til denne funktion.' end
     local EmpData = Pawnshops[Job].Employees[Employee.Identifier]
     if not EmpData then return false, 'Der skete en fejl.' end
 
     local Percentage = Employee.Percentage
     local Amount = math.floor((EmpData.Profit * Percentage) / 100)
+
+    local JobAccount = Util.GetJobAccount(Job)
+    if JobAccount < Amount then return false, 'Der er ikke nok penge på jobkontoen.' end
 
     local PrinterId = ('%s_printer'):format(Job)
     local PrinterInv = exports['ox_inventory']:GetInventory(PrinterId)
@@ -383,6 +474,8 @@ lib.callback.register('mani-pawnshop:server:PrintCheck', function(Source, Employ
 
         PrinterInv = exports['ox_inventory']:GetInventory(PrinterId)
     end
+
+    Util.RemoveMoneyForJob(Job, Amount)
 
     exports['mani-checks']:RegisterCheck({
         Identifier = Employee.Identifier,

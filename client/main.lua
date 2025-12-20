@@ -60,15 +60,27 @@ local function EnterPawnshop(Data)
             debugColour = vec4(51, 54, 92, 50.0),
             debug = Config.Debug,
             options = {
-                label = 'Åben bakke',
-                icon = 'fa-solid fa-box-open',
-                distance = 2.0,
-                onSelect = function()
-                    if not exports['ox_inventory']:openInventory('stash', TrayId) then
-                        local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Index = i, Type = 'tray', Job = Shop.Job })
-                        if Success then exports['ox_inventory']:openInventory('stash', TrayId) end
+                {
+                    label = 'Åben bakke',
+                    icon = 'fa-solid fa-box-open',
+                    distance = 2.0,
+                    onSelect = function()
+                        if not exports['ox_inventory']:openInventory('stash', TrayId) then
+                            local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Index = i, Type = 'tray', Job = Shop.Job })
+                            if Success then exports['ox_inventory']:openInventory('stash', TrayId) end
+                        end
                     end
-                end
+                },
+                {
+                    label = 'Opkøb varer',
+                    icon = 'fa-solid fa-credit-card',
+                    group = Shop.Job,
+                    distance = 2.0,
+                    onSelect = function()
+                        local Success, Error = lib.callback.await('mani-pawnshop:server:BuyFromTray', false, { Index = i})
+                        if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved køb af varer.', type = 'error' }) end
+                    end
+                }
             }
 
         })
@@ -217,6 +229,15 @@ RegisterNUICallback('PrintCheck', function(Employee, cb)
     if not NewEmployees then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved udskrivning af check.', type = 'error' }) end
 
     cb(NewEmployees)
+end)
+
+lib.callback.register('mani-pawnshop:client:SelectPlayer', function(NearbyPlayers)
+    local Input = lib.inputDialog('Vælg person', {
+        { type = 'select', label = 'Personer i nærheden', options = NearbyPlayers, required = true }
+    })
+    if not Input then return nil end
+
+    return Input[1]
 end)
 
 CreateThread(function()
