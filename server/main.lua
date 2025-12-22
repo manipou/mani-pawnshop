@@ -2,6 +2,35 @@ local Config, Util = lib.load('config'), lib.load('sv_util')
 
 local Pawnshops, Contract, Orders, InProgress = {}, {}, {}, {}
 
+local function GenerateOrder()
+    local OrderType = lib.table.deepclone(Config.Orders.Types[math.random(1, #Config.Orders.Types)])
+    local OrderIndex = #Orders + 1
+    OrderType.Id = OrderIndex
+    OrderType.CreatedAt = os.time()
+
+    local Items = OrderType.InterestedIn
+    local UsedItems = {}
+    OrderType.InterestedIn = {}
+
+    for i = 1, OrderType.Items do
+        local Item = Items[math.random(1, #Items)]
+        while UsedItems[Item.Item] do
+            Item = Items[math.random(1, #Items)]
+        end
+
+        Item.Amount = math.random(Item.Amount[1], Item.Amount[2])
+        OrderType.InterestedIn[#OrderType.InterestedIn + 1] = Item
+
+        UsedItems[Item.Item] = true
+    end
+
+    Orders[OrderIndex] = OrderType
+
+    SetTimeout(Config.Orders.Expire * 60 * 1000, function()
+        Orders[OrderIndex] = nil
+    end)
+end
+
 CreateThread(function()
     local SQLSuccess, SQLShops = pcall(function() return MySQL.query.await('SELECT * FROM `mani_pawnshops`') end)
     if not SQLSuccess then
@@ -55,32 +84,7 @@ CreateThread(function()
     while true do
         Wait(math.random(Config.Orders.Interval[1], Config.Orders.Interval[2]) * 1000 * 60)
 
-        local OrderType = lib.table.deepclone(Config.Orders.Types[math.random(1, #Config.Orders.Types)])
-        local OrderIndex = #Orders + 1
-        OrderType.Id = OrderIndex
-        OrderType.CreatedAt = os.time()
-
-        local Items = OrderType.InterestedIn
-        local UsedItems = {}
-        OrderType.InterestedIn = {}
-
-        for i = 1, OrderType.Items do
-            local Item = Items[math.random(1, #Items)]
-            while UsedItems[Item.Item] do
-                Item = Items[math.random(1, #Items)]
-            end
-
-            Item.Amount = math.random(Item.Amount[1], Item.Amount[2])
-            OrderType.InterestedIn[#OrderType.InterestedIn + 1] = Item
-
-            UsedItems[Item.Item] = true
-        end
-
-        Orders[OrderIndex] = OrderType
-
-        SetTimeout(Config.Orders.Expire * 60 * 1000, function()
-            Orders[OrderIndex] = nil
-        end)
+        GenerateOrder()
     end
 end)
 
@@ -91,13 +95,15 @@ local function RegisterStash(Data)
     exports['ox_inventory']:RegisterStash(InvId, Config.Inventory[Type].Label, Config.Inventory[Type].Slots, Config.Inventory[Type].MaxWeight)
 end
 
-local function AddXP(Job, Amount)
+local function AddXP(Source, Job, Amount)
     Pawnshops[Job].Metadata.XP = (Pawnshops[Job].Metadata.XP or 0) + Amount
 
     MySQL.update.await('UPDATE `mani_pawnshops` SET `metadata` = ? WHERE `job` = ?', {
         json.encode(Pawnshops[Job].Metadata),
         Job
     })
+
+    Util.Log(Source, ('Modtog %s XP for job [%s].'):format(tostring(Amount), Job))
 end
 
 local function SetCooldown(Job, ContractType)
@@ -190,8 +196,9 @@ lib.callback.register('mani-pawnshop:server:BuyFromTray', function(Source, Data)
 
             TotalWorth = TotalWorth + ItemWorth
 
-            exports['ox_inventory']:RemoveItem(TrayId, Item, Amount)
-            exports['ox_inventory']:AddItem(TargetSource, Item, Amount)
+            if exports['ox_inventory']:RemoveItem(TrayId, Item, Amount) then
+                exports['ox_inventory']:AddItem(TargetSource, Item, Amount)
+            end
         end
     end
 
@@ -201,9 +208,11 @@ lib.callback.register('mani-pawnshop:server:BuyFromTray', function(Source, Data)
 
         Util.RemoveMoneyForJob(Job, TotalWorth)
         exports['mani-bridge']:AddMoney(TargetSource, 'bank', TotalWorth)
+
+        Util.Log(Source, ('[%s] %s Købte varer for %s fra [%s] %s'):format(Job, GetPlayerName(Source), tostring(TotalWorth), tostring(TargetSource), GetPlayerName(TargetSource)))
     end
 
-    return true
+    return TotalWorth
 end)
 
 lib.callback.register('mani-pawnshop:server:StartDumpsterContract', function(Source, Data)
@@ -274,7 +283,7 @@ lib.callback.register('mani-pawnshop:server:SearchDumpster', function(Source, Da
     exports['ox_inventory']:AddItem(Source, Reward.Item, Amount)
 
     if ContractData.Looted >= ContractData.Dumpsters then
-        AddXP(PlayerData.Job.Name, ContractData.XP)
+        AddXP(Source, PlayerData.Job.Name, ContractData.XP)
 
         Util.Log(Source, ('Færdiggjorde en DumpsterDive kontrakt og modtog %s XP.'):format(tostring(ContractData.XP * ContractData.Dumpsters)))
         
@@ -332,6 +341,9 @@ lib.callback.register('mani-pawnshop:server:RegisterTempStash', function(Source,
 end)
 
 lib.callback.register('mani-pawnshop:server:CompleteOrder', function(Source)
+    local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
+    if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
+
     local Order = InProgress[Source]
     if not Order then
         Util.ACLog(Source, ('%s [%s] Forsøgte at fuldføre en ordre de ikke har accepteret.'):format(GetPlayerName(Source), Source))
@@ -350,8 +362,8 @@ lib.callback.register('mani-pawnshop:server:CompleteOrder', function(Source)
     for i = 1, #Order.InterestedIn do
         local Item = Order.InterestedIn[i]
 
-        if exports['ox_inventory']:RemoveItem(Source, Item.Item, Item.Amount, Order.Stash) then
-            Util.AddMoneyForJob(Order.Job, Config.Orders.Worth[Item.Item] * Item.Amount)
+        if exports['ox_inventory']:RemoveItem(Order.Stash, Item.Item, Item.Amount) then
+            Util.AddMoneyForJob(Order.Job, Config.Orders.Worth[Item.Item] * Item.Amount, { Name = PlayerData.Character.Fullname, Reason = 'Materiale ordrer' })
 
             Util.Log(Source, ('Afleverede %s x %s for ordre %s.'):format(tostring(Item.Amount), Item.Item, tostring(Order.Id)))
         end
@@ -451,20 +463,20 @@ lib.callback.register('mani-pawnshop:server:PrintCheck', function(Source, Employ
     local PlayerData = exports['mani-bridge']:GetPlayerData(Source)
     if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
 
-    local Job = PlayerData.Job.Name
-    local PawnData = Pawnshops[Job]
+    local Job = PlayerData.Job
+    local PawnData = Pawnshops[Job.Name]
     if not PawnData then return false, 'Der skete en fejl.' end
     if not Job.IsBoss then return false, 'Du har ikke adgang til denne funktion.' end
-    local EmpData = Pawnshops[Job].Employees[Employee.Identifier]
+    local EmpData = Pawnshops[Job.Name].Employees[Employee.Identifier]
     if not EmpData then return false, 'Der skete en fejl.' end
 
     local Percentage = Employee.Percentage
     local Amount = math.floor((EmpData.Profit * Percentage) / 100)
 
-    local JobAccount = Util.GetJobAccount(Job)
+    local JobAccount = Util.GetJobAccount(Job.Name)
     if JobAccount < Amount then return false, 'Der er ikke nok penge på jobkontoen.' end
 
-    local PrinterId = ('%s_printer'):format(Job)
+    local PrinterId = ('%s_printer'):format(Job.Name)
     local PrinterInv = exports['ox_inventory']:GetInventory(PrinterId)
     if not PrinterInv then
         RegisterStash({
@@ -475,7 +487,7 @@ lib.callback.register('mani-pawnshop:server:PrintCheck', function(Source, Employ
         PrinterInv = exports['ox_inventory']:GetInventory(PrinterId)
     end
 
-    Util.RemoveMoneyForJob(Job, Amount)
+    Util.RemoveMoneyForJob(Job.Name, Amount)
 
     exports['mani-checks']:RegisterCheck({
         Identifier = Employee.Identifier,
@@ -484,7 +496,18 @@ lib.callback.register('mani-pawnshop:server:PrintCheck', function(Source, Employ
         InvId = PrinterId
     })
 
-    Pawnshops[Job].Employees[Employee.Identifier] = nil
+    Util.Log(Source, ('[%s] %s oprettede en lønseddel til %s'):format(Source, PlayerData.Character.Fullname, EmpData.Name))
+
+    Pawnshops[Job.Name].Employees[Employee.Identifier] = nil
     
-    return Pawnshops[Job].Employees
+    return Pawnshops[Job.Name].Employees
+end)
+
+lib.addCommand('admin:pawnorder', {
+    help = 'Generere en ordre til Pawnshops.',
+    restricted = 'group.god'
+}, function(source, args, raw)
+    GenerateOrder()
+
+    Util.Log(source, ('[%s] %s genererede en ordre til Pawnshops.'):format(source, GetPlayerName(source)))
 end)

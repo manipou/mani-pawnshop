@@ -74,11 +74,13 @@ local function EnterPawnshop(Data)
                 {
                     label = 'Opkøb varer',
                     icon = 'fa-solid fa-credit-card',
-                    group = Shop.Job,
+                    groups = Shop.Job,
                     distance = 2.0,
                     onSelect = function()
-                        local Success, Error = lib.callback.await('mani-pawnshop:server:BuyFromTray', false, { Index = i})
-                        if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved køb af varer.', type = 'error' }) end
+                        local SalesAmount, Error = lib.callback.await('mani-pawnshop:server:BuyFromTray', false, { Index = i})
+                        if not SalesAmount then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved køb af varer.', type = 'error' }) end
+
+                        lib.notify({ title = 'Køb succesfuld', description = ('Du har købt varer for %s kr.'):format(SalesAmount), type = 'success' })
                     end
                 }
             }
@@ -96,7 +98,7 @@ local function EnterPawnshop(Data)
             {
                 label = 'Åben refiner',
                 icon = 'fa-solid fa-box-archive',
-                group = Shop.Job,
+                groups = Shop.Job,
                 distance = 2.0,
                 onSelect = function()
                     local RefinerState = lib.callback.await('mani-pawnshop:server:GetRefinerState', false, { Job = Shop.Job })
@@ -112,7 +114,7 @@ local function EnterPawnshop(Data)
             {
                 label = 'Start refiner',
                 icon = 'fa-solid fa-recycle',
-                group = Shop.Job,
+                groups = Shop.Job,
                 distance = 2.0,
                 onSelect = function()
                     local Success, Error = lib.callback.await('mani-pawnshop:server:StartRefining', false, { Job = Shop.Job })
@@ -131,7 +133,7 @@ local function EnterPawnshop(Data)
         options = {
             label = 'Åben printer',
             icon = 'fa-solid fa-print',
-            group = Shop.Job,
+            groups = Shop.Job,
             distance = 2.0,
             onSelect = function()
                 local PrinterId = ('%s_printer'):format(Shop.Job)
@@ -152,7 +154,7 @@ local function EnterPawnshop(Data)
         options = {
             label = 'Åben stash',
             icon = 'fa-solid fa-box-archive',
-            group = Shop.Job,
+            groups = Shop.Job,
             distance = 2.0,
             onSelect = function()
                 local StashID = ('%s_stash'):format(Shop.Job)
@@ -173,7 +175,7 @@ local function EnterPawnshop(Data)
         options = {
             label = 'Brug computer',
             icon = 'fa-solid fa-computer',
-            group = Shop.Job,
+            groups = Shop.Job,
             distance = 2.0,
             onSelect = function()
                 OpenComputer(Data.Index)
