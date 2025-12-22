@@ -77,8 +77,8 @@ Config.Contracts = {
 }
 
 Config.Orders = {
-    Interval = { 30, 45 }, -- Minutes
-    Expire = 120, -- Minutes
+    Interval = { 20, 30 }, -- Minutes
+    Expire = 60, -- Minutes
     Worth = {
         ['refinedmaterial'] = 500
     },
@@ -89,7 +89,7 @@ Config.Orders = {
             Coords = vec4(539.95, -1655.64, 27.83, 230.59),
             Items = 1,
             InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 500, 1000 } }
+                { Item = 'refinedmaterial', Amount = { 700, 1250 } }
             }
         },
         {
@@ -98,7 +98,7 @@ Config.Orders = {
             Coords = vec4(-1175.75, -899.56, 12.70, 217.64),
             Items = 1,
             InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 400, 900 } }
+                { Item = 'refinedmaterial', Amount = { 700, 1250 } }
             }
         },
     }

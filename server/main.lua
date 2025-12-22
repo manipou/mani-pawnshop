@@ -200,7 +200,7 @@ lib.callback.register('mani-pawnshop:server:BuyFromTray', function(Source, Data)
             TotalWorth = TotalWorth + ItemWorth
 
             if exports['ox_inventory']:RemoveItem(TrayId, Item, Amount) then
-                exports['ox_inventory']:AddItem(TargetSource, Item, Amount)
+                exports['ox_inventory']:AddItem(Source, Item, Amount)
             end
         end
     end
