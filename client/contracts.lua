@@ -1,12 +1,14 @@
 local Config, Util = lib.load('Config'), lib.load('Util')
 
-local Targets, Blips, BlacklistedEntities, Contract = {}, {}, {}, {}
+local Blips, BlacklistedEntities, Contract = {}, {}, {}
 
 local function MigrateNetId(NetId)
     while not NetworkDoesEntityExistWithNetworkId(NetId) do Wait(100) end
 
     SetNetworkIdCanMigrate(NetId, true)
     SetNetworkIdExistsOnAllMachines(NetId, true)
+    
+    Wait(100)
 end
 
 local function ClearContract()

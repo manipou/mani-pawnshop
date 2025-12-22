@@ -504,8 +504,7 @@
 								Opdater
 							</button>
 						</div>
-
-						{#if Orders.length === 0}
+						{#if !Array.isArray(Orders) || Orders.filter(o => o && o.Available !== false && o.Id && o.Label).length === 0}
 							<div class="flex items-center justify-center h-64">
 								<div class="text-center">
 									<p class="text-sm font-semibold mb-1" style="color: #0a246a;">Ingen aktive ordrer</p>
@@ -515,7 +514,7 @@
 						{:else}
 							<!-- Orders Grid -->
 							<div class="grid grid-cols-2 gap-3">
-								{#each Orders as Order}
+							{#each (Array.isArray(Orders) ? Orders : []).filter(o => o && o.Available !== false && o.Id && o.Label) as Order}
 									<div
 										class="flex flex-col rounded overflow-hidden"
 										style="background: #ffffff; border: 2px solid #d4d0c8; box-shadow: 2px 2px 4px rgba(0,0,0,0.1);"
@@ -559,7 +558,6 @@
 						{/each}
 							</div>
 						{/if}
-					
 					{:else if activeTab === 'pay'}
 						<!-- Pay Tab Content -->
 						<div class="mb-3">

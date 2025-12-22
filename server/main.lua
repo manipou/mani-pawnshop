@@ -7,6 +7,7 @@ local function GenerateOrder()
     local OrderIndex = #Orders + 1
     OrderType.Id = OrderIndex
     OrderType.CreatedAt = os.time()
+    OrderType.Available = true
 
     local Items = OrderType.InterestedIn
     local UsedItems = {}
@@ -27,7 +28,9 @@ local function GenerateOrder()
     Orders[OrderIndex] = OrderType
 
     SetTimeout(Config.Orders.Expire * 60 * 1000, function()
-        Orders[OrderIndex] = nil
+        Orders[OrderIndex] = {
+            Available = false
+        }
     end)
 end
 
@@ -311,13 +314,15 @@ lib.callback.register('mani-pawnshop:server:AcceptOrder', function(Source, Data)
     end
 
     local Order = Orders[OrderId]
-    if not Order then return false, 'Denne ordre findes ikke længere.' end
+    if not Order or not Order.Available then return false, 'Denne ordre findes ikke længere.' end
 
     Order.Job = PlayerData.Job.Name
 
     InProgress[Source] = Order
 
-    Orders[OrderId] = nil
+    Orders[OrderId] = {
+        Available = false
+    }
 
     Util.Log(Source, ('%s accepterede ordre %s.'):format(GetPlayerName(Source), tostring(OrderId)))
 
