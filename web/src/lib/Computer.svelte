@@ -133,6 +133,19 @@
 		});
 	}
 
+	function removePaycheck(employee: any) {
+		PlaySound("click", 0.2);
+		fetchNui('RemovePaycheck', {
+			Identifier: employee.Identifier,
+		}).then((NewEmployees: any) => {
+			if (NewEmployees) {
+				PawnData.update(data => {
+					return { ...data, Employees: NewEmployees };
+				});
+			}
+		});
+	}
+
 	function updateTime() {
 		const now = new Date();
 		currentTime = now.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -306,7 +319,7 @@
 			</div>
 		{/if}
 		
-		<!-- Time and Date Display -->
+		<!-- Time, Date, and Mute Display -->
 		<div class="absolute flex items-center gap-4" style="bottom: 5px; right: 12px;">
 			<!-- Mute Button (Retro Win95 Style) -->
 			<button 
@@ -384,7 +397,7 @@
 			<!-- Content area -->
 			<div class="flex-grow overflow-hidden" style="background: #ffffff; border-top: 1px solid #dfdfdf; display: flex;">
 				<!-- Vertical Tabs on Left -->
-				<div class="flex flex-col" style="width: 100px; background: #ece9d8; border-right: 1px solid #808080;">
+				<div class="flex flex-col" style="width: 115px; background: #ece9d8; border-right: 1px solid #808080;">
 					{#each Tabs as Tab}
 						{#if !Tab.BossOnly || $PawnData.IsBoss}
 							<button 
@@ -399,6 +412,18 @@
 							</button>
 						{/if}
 					{/each}
+					
+					<!-- Account Balance Box -->
+					<div class="mt-auto" style="background: #ece9d8; border-top: 2px solid #ffffff;">
+						<div class="p-2">
+							<div class="p-2" style="background: linear-gradient(135deg, #e8f5ff 0%, #d4e8f5 100%); border: 1px solid #b8d4e8; box-shadow: inset 1px 1px 0 rgba(255,255,255,0.8), inset -1px -1px 0 rgba(0,0,0,0.1), 1px 1px 2px rgba(0,0,0,0.1);">
+								<div class="text-[9px] font-bold text-center mb-1" style="color: #0a246a;">KONTO</div>
+								<div class="text-[10px] font-bold text-center px-1 py-0.5" style="color: #0a246a; background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.1);">
+									{($PawnData.Account || 25000000).toLocaleString()} kr.
+								</div>
+							</div>
+						</div>
+					</div>
 				</div>
 
 				<!-- Tab Content -->
@@ -607,13 +632,23 @@
 															<span>100%</span>
 														</div>
 													</div>
+												<div class="flex gap-2">
 													<button 
-														class="xp-button w-full px-3 py-2 text-xs font-bold rounded" 
+														class="xp-button flex-1 px-3 py-2 text-xs font-bold rounded" 
 														style="background: linear-gradient(135deg, #ece9d8 0%, #bfb9b1 100%); border: 1px solid #dfdfdf; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080; transition: all 0.05s ease;"
 														on:click={() => printCheck(Employee)}
 													>
 														Print Check
 													</button>
+													<button 
+														class="xp-button px-3 py-2 text-xs font-bold rounded" 
+														style="background: linear-gradient(135deg, #ffe8e8 0%, #f5d4d4 100%); border: 1px solid #d4b0b0; box-shadow: inset 1px 1px #ffffff, inset -1px -1px #808080; transition: all 0.05s ease;"
+														on:click={() => removePaycheck(Employee)}
+														title="Fjern løn"
+													>
+														×
+													</button>
+												</div>
 												</div>
 											{:else}
 												<div class="flex items-center justify-center flex-grow">

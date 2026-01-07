@@ -15,13 +15,12 @@ local function GetLevel(XP)
 end
 
 local function OpenComputer(ShopId)
-    local PawnData = lib.callback.await('mani-pawnshop:server:GetComputerData', false, {
-        ShopId = ShopId
-    })
+    local PawnData = lib.callback.await('mani-pawnshop:server:GetComputerData', false, { ShopId = ShopId })
 
     local ComputerData = {
         XP = PawnData.Metadata.XP or 0,
         Employees = PawnData.Employees or {},
+        Account = PawnData.Account or 0,
         Level = 0,
         MaxXP = 0,
         IsMaxLevel = false,
@@ -101,9 +100,6 @@ local function EnterPawnshop(Data)
                 groups = Shop.Job,
                 distance = 2.0,
                 onSelect = function()
-                    local RefinerState = lib.callback.await('mani-pawnshop:server:GetRefinerState', false, { Job = Shop.Job })
-                    if RefinerState then lib.notify({ title = 'Refiner', description = 'Refineren er i brug lige nu.', type = 'info' }) return end
-
                     local RefinerID = ('%s_refiner'):format(Shop.Job)
                     if not exports['ox_inventory']:openInventory('stash', RefinerID) then
                         local Success = lib.callback.await('mani-pawnshop:server:RegisterStash', false, { Type = 'refiner', Job = Shop.Job })
@@ -113,12 +109,24 @@ local function EnterPawnshop(Data)
             },
             {
                 label = 'Start refiner',
-                icon = 'fa-solid fa-recycle',
+                icon = 'fa-solid fa-circle-play',
                 groups = Shop.Job,
                 distance = 2.0,
                 onSelect = function()
-                    local Success, Error = lib.callback.await('mani-pawnshop:server:StartRefining', false, { Job = Shop.Job })
+                    local Success, Error = lib.callback.await('mani-pawnshop:server:StartRefining', false)
                     if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved start af refinering.', type = 'error' }) end
+                    lib.notify({ title = 'Succes', description = 'Refinering startet.', type = 'success' })
+                end
+            },
+            {
+                label = 'Stop refiner',
+                icon = 'fa-solid fa-circle-stop',
+                groups = Shop.Job,
+                distance = 2.0,
+                onSelect = function()
+                    local Success, Error = lib.callback.await('mani-pawnshop:server:StopRefining', false)
+                    if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved stop af refinering.', type = 'error' }) end
+                    lib.notify({ title = 'Succes', description = 'Refinering stoppet.', type = 'success' })
                 end
             },
         }
@@ -233,9 +241,18 @@ RegisterNUICallback('PrintCheck', function(Employee, cb)
     cb(NewEmployees)
 end)
 
-lib.callback.register('mani-pawnshop:client:SelectPlayer', function(NearbyPlayers)
-    local Input = lib.inputDialog('Vælg person', {
-        { type = 'select', label = 'Personer i nærheden', options = NearbyPlayers, required = true }
+RegisterNUICallback('RemovePaycheck', function(Employee, cb)
+    local NewEmployees, Error = lib.callback.await('mani-pawnshop:server:RemoveCheck', false, Employee)
+    if not NewEmployees then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved fjernelse af check.', type = 'error' }) end
+
+    cb(NewEmployees)
+end)
+
+
+lib.callback.register('mani-pawnshop:client:SelectPlayer', function(Data)
+    local Worth = exports['mani-bridge']:GroupDigits(Data.Worth)
+    local Input = lib.inputDialog(('Opkøb værdi af %skr'):format(Worth), {
+        { type = 'select', label = 'Vælg person', options = Data.Players, required = true }
     })
     if not Input then return nil end
 
