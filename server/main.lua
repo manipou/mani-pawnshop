@@ -471,6 +471,8 @@ lib.callback.register('mani-pawnshop:server:StopRefining', function(Source, Data
 
     if not Pawnshops[Job].States.Refiner then return false, 'Refineren er ikke i brug lige nu.' end
 
+    if Pawnshops[Job].RefinerIdentifier ~= PlayerData.Identifier and not PlayerData.Job.IsBoss then return false, 'Du kan ikke stoppe refineren.' end
+
     Pawnshops[Job].States.Refiner = false
 
     return true
@@ -481,14 +483,12 @@ lib.callback.register('mani-pawnshop:server:StartRefining', function(Source)
     if not PlayerData then return false, 'Kunne ikke hente spillerdata.' end
     local Job = PlayerData.Job.Name
 
-    local PawnData = Pawnshops[Job]
-    if not PawnData then return false, 'Der skete en fejl.' end
+    local Pawnshop = Pawnshops[Job]
+    if not Pawnshop then return false, 'Der skete en fejl.' end
 
-    if Pawnshops[Job].States.Refiner then
+    if Pawnshop.States.Refiner then
         return false, 'Refineren er i brug lige nu.'
     end
-
-    Pawnshops[Job].States.Refiner = true
 
     local RefinerId = ('%s_refiner'):format(Job)
     local StashId = ('%s_stash'):format(Job)
@@ -512,6 +512,9 @@ lib.callback.register('mani-pawnshop:server:StartRefining', function(Source)
 
         RefinerInv = exports['ox_inventory']:GetInventory(RefinerId)
     end
+
+    Pawnshops[Job].States.Refiner = true
+    Pawnshops[Job].RefinerIdentifier = PlayerData.Identifier
 
     CreateThread(function()
         Pawnshops[Job].Employees[PlayerData.Identifier] = Pawnshops[Job].Employees[PlayerData.Identifier] or {
@@ -537,14 +540,14 @@ lib.callback.register('mani-pawnshop:server:StartRefining', function(Source)
 
                         if exports['ox_inventory']:RemoveItem(RefinerId, Item, Amount) then
                             Pawnshops[Job].Employees[PlayerData.Identifier].Refined = Pawnshops[Job].Employees[PlayerData.Identifier].Refined + Amount
-
-                            local TotalWorth = MaterialWorth * RefinerData.Reward * Amount
                             local MoneySpent = RefinerData.Price * Amount
-                            local Profit = TotalWorth - MoneySpent
+                            local Value = MoneySpent * ((Config.Profit + 100) / 100)
+                            local MaterialAmount = math.floor(Value / MaterialWorth)
+                            local Profit = Value - MoneySpent
 
                             Pawnshops[Job].Employees[PlayerData.Identifier].Profit = Pawnshops[Job].Employees[PlayerData.Identifier].Profit + Profit
 
-                            exports['ox_inventory']:AddItem(StashId, RefinerData.RewardItem or 'refinedmaterial', RefinerData.Reward * Amount)
+                            exports['ox_inventory']:AddItem(StashId, RefinerData.RewardItem or 'refinedmaterial', MaterialAmount)
                         end
                     end
                 end

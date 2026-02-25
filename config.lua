@@ -2,6 +2,8 @@ local Config = {}
 
 Config.Debug = false
 
+Config.Profit = 5 -- 5% profit
+
 Config.Shops = {
     {
         Job = 'pantestjerne',
@@ -15,13 +17,33 @@ Config.Shops = {
             vec3(450.72, -1472.31, 29.30)
         },
         Zone = {
-            vec(435.50, -1464.69, 28.0),
-            vec(455.71, -1457.66, 28.0),
-            vec(465.80, -1486.34, 28.0),
-            vec(446.81, -1492.82, 28.0)
+            vec3(435.50, -1464.69, 28.0),
+            vec3(455.71, -1457.66, 28.0),
+            vec3(465.80, -1486.34, 28.0),
+            vec3(446.81, -1492.82, 28.0)
+        }
+    },
+    {
+        Job = 'gp',
+        Logo = 'https://files.fivemerr.com/images/b9fd1f97-8a2f-448e-b662-1453db5020b6.png',
+        Refiner = vec3(-490.32, 295.03, 83.93),
+        Computer = vec3(-492.70, 291.74, 83.19),
+        Printer = vec3(-494.79, 291.50, 83.33),
+        Stash = vec3(-494.01, 294.97, 83.57),
+        Tray = {
+            vec3(-493.88, 287.71, 83.38),
+            vec3(-491.39, 287.34, 83.38),
+            vec3(-489.00, 287.13, 83.38)
+        },
+        Zone = {
+            vec3(-509.90, 276.55, 82.24),
+            vec3(-473.47, 273.55, 82.27),
+            vec3(-462.39, 297.42, 82.27),
+            vec3(-512.08, 301.96, 82.18)
         }
     }
 }
+
 
 Config.Inventory = {
     ['tray'] = {
@@ -56,7 +78,7 @@ Config.Contracts = {
     ['DumpsterDive'] = {
         Reward = {
             Item = 'refinedmaterial',
-            Amount = { 6, 8 }
+            Amount = { 10, 20 }
         },
         SearchTime = 2500,
         Zones = {
@@ -77,10 +99,10 @@ Config.Contracts = {
 }
 
 Config.Orders = {
-    Interval = { 20, 30 }, -- Minutes
-    Expire = 60, -- Minutes
+    Interval = { 10, 20 }, -- Minutes
+    Expire = 130, -- Minutes
     Worth = {
-        ['refinedmaterial'] = 500
+        ['refinedmaterial'] = 400
     },
     Types = {
         {
@@ -89,7 +111,7 @@ Config.Orders = {
             Coords = vec4(539.95, -1655.64, 27.83, 230.59),
             Items = 1,
             InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 700, 1250 } }
+                { Item = 'refinedmaterial', Amount = { 3500, 4500 } }
             }
         },
         {
@@ -98,7 +120,7 @@ Config.Orders = {
             Coords = vec4(-1175.75, -899.56, 12.70, 217.64),
             Items = 1,
             InterestedIn = {
-                { Item = 'refinedmaterial', Amount = { 700, 1250 } }
+                { Item = 'refinedmaterial', Amount = { 3500, 4500 } }
             }
         },
     }
@@ -106,73 +128,59 @@ Config.Orders = {
 
 Config.Refiner = {
     ['necklace'] = {
-        Price = 700,
-        Reward = 2,
+        Price = 600,
         Time = 400
     },
     ['coins'] = {
-        Price = 2300,
-        Reward = 6,
+        Price = 2100,
         Time = 400
     },
     ['diamond_necklace'] = {
-        Price = 2900,
-        Reward = 8,
+        Price = 2600,
         Time = 650
     },
     ['ring'] = {
-        Price = 450,
-        Reward = 2,
+        Price = 400,
         Time = 400
     },
     ['diamond_ring'] = {
-        Price = 3900,
-        Reward = 10,
+        Price = 3600,
         Time = 650
     },
     ['watch'] = {
-        Price = 1200,
-        Reward = 3,
+        Price = 1100,
         Time = 400
     },
     ['luxurious_watch'] = {
-        Price = 3100,
-        Reward = 10,
+        Price = 2800,
         Time = 650
     },
     ['gold_bar'] = {
-        Price = 3300,
-        Reward = 9,
+        Price = 3000,
         Time = 1000
     },
     ['diamantboks'] = {
-        Price = 4300,
-        Reward = 11,
+        Price = 4000,
         Time = 400
     },
     ['skull_art'] = {
-        Price = 2000,
-        Reward = 5,
+        Price = 1800,
         Time = 1000
     },
     ['painting1'] = {
-        Price = 3700,
-        Reward = 8,
+        Price = 3400,
         Time = 500
     },
     ['painting2'] = {
-        Price = 7000,
-        Reward = 15,
+        Price = 6300,
         Time = 750
     },
     ['painting3'] = {
-        Price = 22000,
-        Reward = 50,
+        Price = 20000,
         Time = 1000
     },
     ['painting4'] = {
-        Price = 55000,
-        Reward = 120,
+        Price = 50000,
         Time = 2000
     }
 }

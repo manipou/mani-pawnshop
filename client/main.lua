@@ -125,7 +125,7 @@ local function EnterPawnshop(Data)
                 distance = 2.0,
                 onSelect = function()
                     local Success, Error = lib.callback.await('mani-pawnshop:server:StopRefining', false)
-                    if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved stop af refinering.', type = 'error' }) end
+                    if not Success then lib.notify({ title = 'Fejl', description = Error or 'Der opstod en fejl ved stop af refinering.', type = 'error' }) return end
                     lib.notify({ title = 'Succes', description = 'Refinering stoppet.', type = 'success' })
                 end
             },
